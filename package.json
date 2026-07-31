@@ -11,7 +11,8 @@
     "format:check": "prettier --check .",
     "lint": "oxlint --deny-warnings",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "ci": "npm run format:check && npm run lint && npm run typecheck"
+    "build": "npm run build --workspaces --if-present",
+    "ci": "npm run format:check && npm run lint && npm run typecheck && npm run build"
   },
   "devDependencies": {
     "oxlint": "^1.75.0",
