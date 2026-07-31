@@ -1,0 +1,108 @@
+# Cycle 3 — Market creation & discovery engine (step 3, the hard part)
+
+**Goal:** the async discovery pipeline works end-to-end against real
+Overpass/Nominatim, respecting the tiling/caching/freshness design in §3.
+This is the highest-risk cycle and the one most explicitly named in
+what's being evaluated (§1: "real third-party API handling").
+
+**Depends on:** Cycle 1 (schema), Cycle 2 (portfolio rows + market-setup
+data exist).
+**Blocks:** Cycle 4 (dashboard has nothing to read until this produces data).
+
+---
+
+## 3.1 Create-market endpoint
+
+- `POST /markets`: validate boundary is within the 30 sq km cap
+  (server-side check too, not just frontend — never trust the client),
+  insert a `market` row with `status='queued'`, insert `market_category`
+  rows for the selected categories, enqueue a BullMQ discovery job keyed
+  by the new market id, return `200` + `{ market_id }` **immediately**.
+- Do not do any geocoding or discovery synchronously in this handler —
+  that's the entire point of queuing (§3.6).
+
+## 3.2 Worker — portfolio geocoding
+
+- For portfolio rows with NULL `location` whose address falls inside the
+  market's city: geocode via Nominatim.
+- Check `geocode_cache` first (`normalized_address` → `location`) before
+  calling Nominatim — this table is immutable and kept forever (§3.1), so
+  a hit here is a pure win with no freshness check needed.
+- On a miss: call Nominatim, write the result to both `geocode_cache` and
+  back onto `portfolio_store.location`.
+- After geocoding, classify inside/outside via `ST_Contains(boundary,
+  location)` and upsert into `portfolio_store_market` with the resulting
+  `is_inside`.
+
+## 3.3 Worker — tile-based discovery
+
+Follow §3.3/§3.4 exactly — this is the single most important piece of
+logic in the project:
+
+1. Decompose the market's boundary into the fixed grid tiles (geohash/H3
+   cell) it overlaps.
+2. For each overlapping tile × each selected category:
+   - Check `tile_fetch` for an existing row (`tile_key`, `category_id`).
+   - **Cached AND fresh** (`fetched_at` within the freshness window, ~5
+     days) → reuse, skip the external call.
+   - **Missing or stale** → call Overpass for that tile's bbox (broad
+     fetch is fine — Overpass returns many tags per call, trading API
+     calls for compute per §3.4's note), upsert-overwrite the
+     `tile_fetch` row with a fresh `fetched_at`, and replace its
+     `discovered_store` children.
+3. Assemble the full result set from all overlapping tiles' discovered
+   stores, **dedupe by `osm_element_id`** (a store can appear in more than
+   one tile near a boundary), then **clip to the exact market boundary**
+   with `ST_Contains`/`ST_Covers` (tiles are coarser than the drawn
+   rectangle, so this final clip is required for correctness).
+4. Persist the clipped, deduped set — but remember `discovered_store` is
+   keyed to `tile_fetch`, not directly to `market` (§4), so "persisting for
+   this market" really means the market's dashboard queries assemble from
+   tiles at read time; nothing extra needs to be written per-market here
+   beyond the tile/store rows themselves.
+
+## 3.4 Robustness (this is what's being evaluated)
+
+- **Rate limiting**: respect Nominatim/Overpass public fair-use limits —
+  pace worker calls (e.g. a simple token bucket or fixed delay between
+  external calls), don't fire them concurrently without a cap.
+- **Retries**: transient failures (timeout, 5xx, rate-limit response) get
+  retried with backoff; BullMQ's built-in retry/backoff options cover this.
+- **Partial failure**: if some tiles/categories succeed and others
+  permanently fail after retries, don't fail the whole market — persist
+  what succeeded, and record which parts failed (e.g. on the job/market
+  `error` field) so the dashboard can show a coherent partial result
+  rather than nothing.
+- **Status transitions**: `queued → processing → completed`, with
+  `failed` as a first-class terminal state (not just "processing forever").
+  `market.status` is the durable, queryable projection the status API
+  reads — BullMQ owns transient execution state in Redis, Postgres is the
+  source of truth the frontend polls (§5 note on this exact split).
+
+## 3.5 Status endpoint
+
+- `GET /markets/:id/status` → `{ status, progress? }` where `progress` can
+  be as coarse as "tiles fetched / tiles total" — good enough for the
+  frontend's 10s poll loop in Cycle 4.
+
+---
+
+## Exit criteria
+
+- [ ] `POST /markets` for a real small city boundary returns `200` +
+      `queued` in well under a second (no synchronous work in the handler).
+- [ ] Polling `/markets/:id/status` reaches `completed` within a reasonable
+      time for a small boundary + 1-2 categories.
+- [ ] `discovered_store` rows for the market are correctly clipped — spot
+      check a store near the boundary edge that should be excluded is
+      actually excluded.
+- [ ] Portfolio rows inside the boundary are marked `is_inside=true` in
+      `portfolio_store_market`; rows outside are `false`.
+- [ ] Creating a **second market with an overlapping boundary** (same
+      city, overlapping rectangle) reuses already-cached tiles — verify
+      via logs or a temporary counter that fewer external Overpass calls
+      happen on the second run than the first.
+- [ ] Force a category/tile fetch to fail (e.g. temporarily point at a bad
+      URL) and confirm the market still reaches a sane terminal state
+      (`failed` or a documented partial-success behavior) instead of
+      hanging in `processing`.
