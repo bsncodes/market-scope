@@ -4,10 +4,11 @@ import express, {
 } from 'express';
 import { MulterError } from 'multer';
 import { AppError } from './errors';
+import { HttpStatus } from './types/http';
 import { apiRouter } from './routes';
 
 const notFoundHandler: RequestHandler = (req, res) => {
-  res.status(404).json({
+  res.status(HttpStatus.NotFound).json({
     error: {
       code: 'route_not_found',
       message: `Cannot ${req.method} ${req.path}`,
@@ -27,19 +28,21 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   // buffer is ever parsed.
   if (err instanceof MulterError) {
     const oversized = err.code === 'LIMIT_FILE_SIZE';
-    res.status(400).json({
-      error: {
-        code: oversized ? 'file_too_large' : 'upload_rejected',
-        message: oversized
-          ? 'The file exceeds the 5 MB upload limit.'
-          : err.message,
-      },
-    });
+    res
+      .status(oversized ? HttpStatus.PayloadTooLarge : HttpStatus.BadRequest)
+      .json({
+        error: {
+          code: oversized ? 'file_too_large' : 'upload_rejected',
+          message: oversized
+            ? 'The file exceeds the 5 MB upload limit.'
+            : err.message,
+        },
+      });
     return;
   }
 
   console.error(err);
-  res.status(500).json({
+  res.status(HttpStatus.InternalServerError).json({
     error: { code: 'internal_error', message: 'Something went wrong.' },
   });
 };

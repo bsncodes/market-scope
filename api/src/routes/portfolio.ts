@@ -3,6 +3,7 @@ import multer from 'multer';
 import { badRequest } from '../errors';
 import { countPortfolioStores } from '../repositories/portfolio';
 import { replacePortfolioFromCsv } from '../controllers/portfolio';
+import { HttpStatus } from '../types/http';
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
@@ -41,7 +42,9 @@ portfolioRouter.post('/upload', upload.single('file'), async (req, res) => {
       'No file uploaded. Attach a CSV as the "file" field.',
     );
   }
-  res.status(201).json(await replacePortfolioFromCsv(req.file.buffer));
+  res
+    .status(HttpStatus.Created)
+    .json(await replacePortfolioFromCsv(req.file.buffer));
 });
 
 portfolioRouter.get('/summary', async (_req, res) => {

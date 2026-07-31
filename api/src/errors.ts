@@ -1,6 +1,8 @@
+import { HttpStatus } from './types/http';
+
 export class AppError extends Error {
   constructor(
-    readonly status: number,
+    readonly status: HttpStatus,
     readonly code: string,
     message: string,
     readonly details?: unknown,
@@ -11,10 +13,10 @@ export class AppError extends Error {
 }
 
 export const badRequest = (code: string, message: string, details?: unknown) =>
-  new AppError(400, code, message, details);
+  new AppError(HttpStatus.BadRequest, code, message, details);
 
 export const notFound = (code: string, message: string) =>
-  new AppError(404, code, message);
+  new AppError(HttpStatus.NotFound, code, message);
 
 export const badGateway = (code: string, message: string) =>
-  new AppError(502, code, message);
+  new AppError(HttpStatus.BadGateway, code, message);
