@@ -5,22 +5,35 @@ import { seedCities } from './seed/seedCities';
 import { seedCategories } from './seed/seedCategories';
 
 async function main() {
-  const countryId = await seedCountry(pool);
-  console.log('Seeded country: India');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-  const stateIdByStateCode = await seedStates(pool, countryId);
-  console.log(`Seeded states: ${stateIdByStateCode.size}`);
+    const countryId = await seedCountry(client);
+    console.log('Seeded country: India');
 
-  await seedCities(pool, stateIdByStateCode);
-  console.log('Seeded cities');
+    const stateIdByStateCode = await seedStates(client, countryId);
+    console.log(`Seeded states: ${stateIdByStateCode.size}`);
 
-  await seedCategories(pool);
-  console.log('Seeded categories');
+    await seedCities(client, stateIdByStateCode);
+    console.log('Seeded cities');
+
+    await seedCategories(client);
+    console.log('Seeded categories');
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 main()
   .then(() => pool.end())
-  .catch((err) => {
+  .catch(async (err) => {
     console.error(err);
-    return pool.end().finally(() => process.exit(1));
+    await pool.end();
+    process.exit(1);
   });
