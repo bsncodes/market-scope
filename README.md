@@ -33,8 +33,9 @@ create the one it runs in.
 Run from the repo root:
 
 ```bash
-npm run ci                            # what CI runs: prettier --check + typecheck all workspaces
+npm run ci                            # what CI runs: format:check + lint + typecheck
 npm run format                        # apply Prettier formatting
+npm run lint                          # oxlint across both workspaces
 
 npm run migrate:up   --workspace api  # apply migrations
 npm run migrate:down --workspace api  # roll back one migration
