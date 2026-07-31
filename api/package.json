@@ -6,6 +6,7 @@
     "migrate:down": "node-pg-migrate down --envPath ../.env",
     "seed": "tsx scripts/seed.ts",
     "init:setup": "npm run migrate:up && npm run seed",
+    "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
