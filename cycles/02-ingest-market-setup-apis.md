@@ -11,9 +11,7 @@ cycle is API-only and testable with curl/Postman.
 
 ## 2.1 Portfolio upload (functional step 1)
 
-- Endpoint accepts CSV. Decide now whether XLSX is also supported and
-  write down the decision (and reasoning) in the README notes for
-  Cycle 5 — don't leave it implicit.
+- Endpoint accepts CSV only.
 - Validation pipeline, in this exact order (fail fast, cheapest checks
   first):
   1. **File type** — reject non-CSV/XLSX immediately.
@@ -26,10 +24,7 @@ cycle is API-only and testable with curl/Postman.
      given are valid numbers in range.
 - Decide the **row-failure policy** explicitly — this is a named
   evaluation point, not a detail to skip:
-  - Reject-whole-file: any bad row fails the entire upload.
-  - Accept-valid-and-report: good rows are inserted, bad rows are
-    returned to the user with row number + reason.
-  - Pick one, document why, implement it consistently.
+  - Reject-whole-file: any bad row fails the entire upload, returned to the user with the row number + reason.
 - Persist accepted rows to `portfolio_store`. `location` stays NULL for
   rows missing lat/long — those get geocoded later, in Cycle 3, but only
   if they fall inside a market's boundary (geocoding everything eagerly

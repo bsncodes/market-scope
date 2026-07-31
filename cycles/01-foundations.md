@@ -146,13 +146,13 @@ a real checklist, not a formality:
 
 ## Exit criteria
 
-- [ ] With Postgres+Redis already up via `docker compose up`, a single
+- [X] With Postgres+Redis already up via `docker compose up`, a single
       `npm run init:setup` runs all migrations and seeds India
       country/state/city/category data with no manual intervention.
-- [ ] Re-running `npm run init:setup` on top of already-set-up state
+- [X] Re-running `npm run init:setup` on top of already-set-up state
       succeeds without error or duplicated rows (idempotency check).
-- [ ] `npm run migrate:down` (to zero) followed by `npm run migrate:up`
+- [X] `npm run migrate:down` (to zero) followed by `npm run migrate:up`
       again succeeds — proves reversibility, not just forward application.
-- [ ] A manual `psql` query confirms seeded cities (with parent state/country)
+- [X] A manual `psql` query confirms seeded cities (with parent state/country)
       and categories (with correct OSM tag arrays) are present and correct.
-- [ ] All six checks in §1.3 pass against the real running PostGIS instance.
+- [X] All six checks in §1.3 pass against the real running PostGIS instance.
