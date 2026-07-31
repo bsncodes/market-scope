@@ -1,0 +1,7 @@
+node_modules
+dist
+package-lock.json
+
+# Planning docs: hand-wrapped prose, reflowing them creates noise
+cycles
+MARKETSCOPE_KNOWLEDGE.md

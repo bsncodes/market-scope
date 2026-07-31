@@ -7,7 +7,7 @@ on:
     branches: [main]
   schedule:
     # Re-scan unchanged code weekly so newly published queries still catch it.
-    - cron: '0 3 * * 1'
+    - cron: "0 3 * * 1"
 
 jobs:
   analyze:
@@ -35,4 +35,4 @@ jobs:
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v3
         with:
-          category: '/language:javascript-typescript'
+          category: "/language:javascript-typescript"

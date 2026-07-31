@@ -5,7 +5,6 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import { Pool, types } from 'pg';
 
-
 types.setTypeParser(20, (val) => parseInt(val, 10));
 
 if (!process.env.DATABASE_URL) {
