@@ -43,6 +43,8 @@ function numeric(name: string, fallback: number): number {
 }
 
 export const config = {
+  port: numeric('PORT', 3000),
+
   databaseUrl: required('DATABASE_URL'),
   redisUrl: optional('REDIS_URL', 'redis://localhost:6379'),
 

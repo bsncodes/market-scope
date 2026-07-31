@@ -65,15 +65,15 @@ cycle is API-only and testable with curl/Postman.
 
 ## Exit criteria
 
-- [ ] Uploading a CSV with one deliberately malformed row (bad header, bad
+- [x] Uploading a CSV with one deliberately malformed row (bad header, bad
       lat/long, missing required field) produces a clear, specific error —
       not a generic 500 or silent drop — consistent with the chosen
       row-failure policy.
-- [ ] Uploading a fully valid CSV persists all rows to `portfolio_store`
+- [x] Uploading a fully valid CSV persists all rows to `portfolio_store`
       with `location` NULL where lat/long weren't provided.
-- [ ] `GET /states?country_id=` and `GET /cities?state_id=` return only
+- [x] `GET /states?country_id=` and `GET /cities?state_id=` return only
       children of the given parent — no leakage across countries/states.
-- [ ] `GET /cities/:id/bbox` called twice for the same never-geocoded city:
+- [x] `GET /cities/:id/bbox` called twice for the same never-geocoded city:
       the first call populates `city.min_lat` etc.; the second call
       returns the same values without a second Nominatim request
       (confirm via logs or a temporary call counter).

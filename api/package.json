@@ -2,6 +2,8 @@
   "name": "marketscope-api",
   "version": "1.0.0",
   "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/src/index.js",
     "migrate:up": "node-pg-migrate up --envPath ../.env",
     "migrate:down": "node-pg-migrate down --envPath ../.env",
     "seed": "tsx scripts/seed.ts",
@@ -16,11 +18,16 @@
   "description": "",
   "dependencies": {
     "country-state-city": "^3.2.1",
+    "csv-parse": "^7.0.1",
     "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "multer": "^2.2.0",
     "node-pg-migrate": "^9.0.0",
     "pg": "^8.22.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.2.0",
     "@types/node": "^26.1.2",
     "@types/pg": "^8.20.0",
     "tsx": "^4.23.1",
