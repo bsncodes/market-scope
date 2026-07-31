@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { badRequest } from '../errors';
+import { requestValidationFailed, unsupportedMediaType } from '../errors';
 import { countPortfolioStores } from '../repositories/portfolio';
 import { replacePortfolioFromCsv } from '../controllers/portfolio';
 import { HttpStatus } from '../types/http';
@@ -22,7 +22,7 @@ const upload = multer({
 
     if (!isCsv) {
       cb(
-        badRequest(
+        unsupportedMediaType(
           `Only .csv files are accepted, received "${file.originalname}".`,
         ),
       );
@@ -36,7 +36,9 @@ export const portfolioRouter = Router();
 
 portfolioRouter.post('/upload', upload.single('file'), async (req, res) => {
   if (!req.file) {
-    throw badRequest('No file uploaded. Attach a CSV as the "file" field.');
+    throw requestValidationFailed(
+      'No file uploaded. Attach a CSV as the "file" field.',
+    );
   }
   res
     .status(HttpStatus.Created)

@@ -5,6 +5,7 @@ export enum HttpStatus {
   BadRequest = 400,
   NotFound = 404,
   PayloadTooLarge = 413,
+  UnsupportedMediaType = 415,
   UnprocessableEntity = 422,
   TooManyRequests = 429,
   InternalServerError = 500,

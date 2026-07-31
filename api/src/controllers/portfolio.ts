@@ -1,5 +1,5 @@
 import { parse } from 'csv-parse/sync';
-import { badRequest } from '../errors';
+import { malformedPayload, resourceValidationFailed } from '../errors';
 import {
   blankToNull,
   normalizeHeader,
@@ -32,13 +32,13 @@ export function parsePortfolioCsv(buffer: Buffer): PortfolioRow[] {
       bom: true,
     });
   } catch (err) {
-    throw badRequest(
+    throw malformedPayload(
       `The file could not be parsed as CSV: ${(err as Error).message}`,
     );
   }
 
   if (records.length === 0) {
-    throw badRequest('The file contains no data rows.');
+    throw resourceValidationFailed('The file contains no data rows.');
   }
 
   assertHeaders(records[0]);
@@ -50,7 +50,7 @@ export function parsePortfolioCsv(buffer: Buffer): PortfolioRow[] {
 
   if (errors.length > 0) {
     const shown = errors.slice(0, MAX_REPORTED_ERRORS);
-    throw badRequest(
+    throw resourceValidationFailed(
       `File rejected: ${errors.length} invalid row${errors.length > 1 ? 's' : ''}. No stores were imported.`,
       {
         error_count: errors.length,
@@ -82,7 +82,7 @@ function assertHeaders(sample: Record<string, string>): void {
   const missing = REQUIRED_HEADERS.filter((header) => !present.has(header));
 
   if (missing.length > 0) {
-    throw badRequest(
+    throw resourceValidationFailed(
       `Missing required column${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}.`,
       { missing, expected: [...REQUIRED_HEADERS, ...OPTIONAL_HEADERS] },
     );

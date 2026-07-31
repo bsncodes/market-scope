@@ -1,5 +1,9 @@
 import { config } from '../config';
-import { badGateway, notFound } from '../errors';
+import {
+  resourceNotFound,
+  upstreamNoResult,
+  upstreamServiceFailed,
+} from '../errors';
 import { HttpError, http } from '../http';
 import { findCityForGeocoding, saveCityBbox } from '../repositories/location';
 import type { CityBbox } from '../types/location';
@@ -21,7 +25,7 @@ interface NominatimResult {
 export async function getCityBbox(cityId: number): Promise<CityBbox> {
   const city = await findCityForGeocoding(cityId);
   if (!city) {
-    throw notFound(`No city with id ${cityId}.`);
+    throw resourceNotFound(`No city with id ${cityId}.`);
   }
 
   if (city.bbox) return city.bbox;
@@ -48,19 +52,19 @@ async function fetchBboxFromNominatim(query: string): Promise<CityBbox> {
         err.status === null
           ? 'could not be reached'
           : `responded with ${err.status}`;
-      throw badGateway(`The geocoding service ${cause}.`);
+      throw upstreamServiceFailed(`The geocoding service ${cause}.`);
     }
     throw err;
   }
 
   const box = results[0]?.boundingbox;
   if (!box) {
-    throw notFound(`No geocoding result for "${query}".`);
+    throw upstreamNoResult(`No geocoding result for "${query}".`);
   }
 
   const [south, north, west, east] = box.map(Number);
   if (![south, north, west, east].every(Number.isFinite)) {
-    throw badGateway(
+    throw upstreamServiceFailed(
       `Geocoding service returned an unparseable bounding box for "${query}".`,
     );
   }

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { notFound } from '../errors';
+import { resourceNotFound } from '../errors';
 import { requireId } from '../helpers/request';
 import {
   countryExists,
@@ -19,7 +19,7 @@ locationRouter.get('/countries', async (_req, res) => {
 locationRouter.get('/countries/:countryId/states', async (req, res) => {
   const countryId = requireId(req.params.countryId, 'countryId');
   if (!(await countryExists(countryId))) {
-    throw notFound(`No country with id ${countryId}.`);
+    throw resourceNotFound(`No country with id ${countryId}.`);
   }
   res.json(await listStates(countryId));
 });
@@ -27,7 +27,7 @@ locationRouter.get('/countries/:countryId/states', async (req, res) => {
 locationRouter.get('/states/:stateId/cities', async (req, res) => {
   const stateId = requireId(req.params.stateId, 'stateId');
   if (!(await stateExists(stateId))) {
-    throw notFound(`No state with id ${stateId}.`);
+    throw resourceNotFound(`No state with id ${stateId}.`);
   }
   res.json(await listCities(stateId));
 });

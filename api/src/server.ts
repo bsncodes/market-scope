@@ -3,51 +3,45 @@ import express, {
   type RequestHandler,
 } from 'express';
 import { MulterError } from 'multer';
-import { AppError } from './errors';
-import { ErrorCode } from './types/error';
-import { HttpStatus } from './types/http';
+import {
+  AppError,
+  internalError,
+  payloadTooLarge,
+  requestValidationFailed,
+  routeNotFound,
+} from './errors';
 import { apiRouter } from './routes';
 
-const notFoundHandler: RequestHandler = (req, res) => {
-  res.status(HttpStatus.NotFound).json({
-    error: {
-      code: ErrorCode.NotFound,
-      message: `Cannot ${req.method} ${req.path}`,
-    },
-  });
+const notFoundHandler: RequestHandler = (req, res, next) => {
+  next(routeNotFound(`Cannot ${req.method} ${req.path}`));
 };
+
+function send(res: Parameters<ErrorRequestHandler>[2], err: AppError): void {
+  res.status(err.status).json({
+    error: { code: err.code, message: err.message, details: err.details },
+  });
+}
 
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof AppError) {
-    res.status(err.status).json({
-      error: { code: err.code, message: err.message, details: err.details },
-    });
+    send(res, err);
     return;
   }
 
   // Check 2 of the validation order: multer rejects oversized files before the
   // buffer is ever parsed.
   if (err instanceof MulterError) {
-    const oversized = err.code === 'LIMIT_FILE_SIZE';
-    res
-      .status(oversized ? HttpStatus.PayloadTooLarge : HttpStatus.BadRequest)
-      .json({
-        error: {
-          code: oversized
-            ? ErrorCode.PayloadTooLarge
-            : ErrorCode.ValidationError,
-          message: oversized
-            ? 'The file exceeds the 5 MB upload limit.'
-            : err.message,
-        },
-      });
+    send(
+      res,
+      err.code === 'LIMIT_FILE_SIZE'
+        ? payloadTooLarge('The file exceeds the 5 MB upload limit.')
+        : requestValidationFailed(err.message),
+    );
     return;
   }
 
   console.error(err);
-  res.status(HttpStatus.InternalServerError).json({
-    error: { code: ErrorCode.InternalError, message: 'Something went wrong.' },
-  });
+  send(res, internalError('Something went wrong.'));
 };
 
 export function createServer() {
