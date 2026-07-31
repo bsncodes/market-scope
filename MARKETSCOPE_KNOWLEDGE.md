@@ -50,10 +50,10 @@ everything.**
 
 ## 2. Tech stack (decided)
 
-- **Monorepo** — `/frontend` and `/backend`, single clone, single README. Keep it
-  simple (no Nx/Turborepo needed).
-- **Frontend** — Vite + React.
-- **Backend** — Node.js / JavaScript.
+- **Monorepo** — `/marketscope-app` and `/marketscope-api`, single clone, single
+  README. Keep it simple (no Nx/Turborepo needed).
+- **Frontend** (`marketscope-app`) — Vite + React + TypeScript.
+- **Backend** (`marketscope-api`) — Node.js + TypeScript.
 - **Database** — PostgreSQL **with PostGIS** (spatial types, `ST_Contains`,
   `ST_DWithin`, GiST indexes).
 - **Cache / queue** — Redis (hot cache + BullMQ backing).

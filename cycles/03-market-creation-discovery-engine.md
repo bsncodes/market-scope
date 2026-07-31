@@ -23,8 +23,38 @@ data exist).
 
 ## 3.2 Worker — portfolio geocoding
 
-- For portfolio rows with NULL `location` whose address falls inside the
-  market's city: geocode via Nominatim.
+- **Candidate pre-filter, not a correctness filter.** You can't know if an
+  ungeocoded row is inside the boundary without geocoding it first, but
+  geocoding *every* row in the customer's entire uploaded portfolio just
+  to create one small-city market wastes rate-limited Nominatim calls on
+  stores with nothing to do with it. So: pre-filter portfolio rows with
+  NULL `location` down to plausible candidates before geocoding — but
+  this filter's only job is bounding API cost, it must never be the thing
+  that decides in/out.
+  - Match **case-insensitive, partial** against the row's `city` **OR**
+    `state` **OR** `country` text vs. the market's city/state/country —
+    an OR of loose matches, not an exact AND. A store whose `city` field
+    says "Bangalore" instead of "Bengaluru", has a typo, or is blank must
+    still be considered a candidate, not silently skipped. Exact-match
+    filtering here is a real correctness bug: it would drop a store that
+    is genuinely inside the boundary just because its free-text city
+    field didn't match ours character-for-character (§4's `city` text
+    columns on `portfolio_store` are unstructured user input, never
+    normalized against the `city` reference table — see the discussion
+    in this cycle's design notes).
+  - `ST_Contains(boundary, location)` after geocoding is the **only**
+    authoritative answer for inside/outside. The pre-filter can only ever
+    add extra candidates to geocode, never remove a genuine match.
+  - **Known limitation to document in the README (§7 pattern)**: this
+    pre-filter is still an approximation — a blank or wildly wrong
+    city/state/country field can still cause a genuinely-inside store to
+    be skipped. The fully-correct alternative is geocoding every
+    ungeocoded portfolio row unconditionally on first use and letting
+    `ST_Contains` decide with no pre-filter at all — more expensive on a
+    customer's *first* market (geocodes their whole portfolio once), but
+    `geocode_cache` means every market created after that pays nothing
+    extra for the same stores. Worth naming as a deliberate tradeoff, not
+    leaving implicit.
 - Check `geocode_cache` first (`normalized_address` → `location`) before
   calling Nominatim — this table is immutable and kept forever (§3.1), so
   a hit here is a pure win with no freshness check needed.
