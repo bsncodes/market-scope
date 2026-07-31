@@ -7,18 +7,51 @@ on:
     branches: [main]
 
 jobs:
-  ci:
-    name: Format, lint & typecheck
+  # Prettier and oxlint both scan from the repo root, so these two cover every
+  # workspace plus root-level files. Splitting them per workspace would lose
+  # docker-compose.yml, the workflows and the README.
+  format:
+    name: Format
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: npm run format:check
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: npm run lint
 
-      - run: npm ci
+  # Per workspace so a failure names the package. fail-fast is off so one
+  # broken workspace does not hide the state of the other.
+  typecheck:
+    name: Typecheck (${{ matrix.workspace }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace: [api, app]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: npm run typecheck --workspace ${{ matrix.workspace }}
 
-      - run: npm run ci
+  build:
+    name: Build (${{ matrix.workspace }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace: [api, app]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: npm run build --workspace ${{ matrix.workspace }}
