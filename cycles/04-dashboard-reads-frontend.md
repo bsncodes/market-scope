@@ -74,6 +74,27 @@ the slow side-effecting jobs only, fast reads stay direct):
 - List view alongside the map: name + category minimum, ideally filtered
   to match whichever layers are currently toggled on.
 
+## 4.6 Data freshness — label it, don't refresh it
+
+- Show the discovered layer with a **"Discovered `<date>`"** label, read from
+  `market.last_discovered_at` (added in migration `007`). One column read —
+  deriving it from `min(fetched_at)` across overlapping tiles would mean
+  decomposing the boundary on a read path §3.6 requires to stay fast.
+- **No refresh / re-discover button.** Deliberately cut: it isn't in the
+  brief's four-step flow, and the only case where it genuinely helps —
+  retrying tiles that permanently failed — belongs in Cycle 3's job error
+  handling, not a dashboard control. Adding it would mean a cooldown state
+  machine (refresh inside the freshness window is a pure no-op: the worker
+  finds every tile fresh, calls Overpass zero times, returns identical data)
+  for a scenario that barely exists in a single-session demo.
+- Partial failures surface through `market.error` as "some areas couldn't be
+  fetched" — no new mechanism.
+- **Related known limitation for the README**: because `discovered_store`
+  hangs off `tile_fetch` and nothing links a market to its tiles, a cleanup
+  job that deleted stale tiles would silently empty an existing market's
+  dashboard. That's the reason cleanup stays unbuilt (see Cycle 3) — not
+  lack of time.
+
 ---
 
 ## Exit criteria

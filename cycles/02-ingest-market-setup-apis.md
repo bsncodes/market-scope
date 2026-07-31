@@ -25,6 +25,20 @@ cycle is API-only and testable with curl/Postman.
 - Decide the **row-failure policy** explicitly — this is a named
   evaluation point, not a detail to skip:
   - Reject-whole-file: any bad row fails the entire upload, returned to the user with the row number + reason.
+- **An upload replaces the entire portfolio** — `DELETE FROM portfolio_store`
+  then insert, in one transaction. Decided over an `upload_batch` table or
+  natural-key dedupe: the brief treats the portfolio as one thing the user
+  brings (no accounts, no multi-tenancy, no merge story anywhere in the four
+  step flow), so a batch table adds a join to every downstream query and a
+  "which batch?" question the product never asks. `(store_name, address)`
+  dedupe was rejected too — it silently collapses two real stores sharing a
+  mall address and still answers nothing about replacement.
+  - Migration `007` added `ON DELETE CASCADE` to both `portfolio_store_market`
+    FKs, which is what makes this delete possible at all.
+  - Consequence to document in the README: re-uploading resets the portfolio,
+    so markets created earlier lose their portfolio layers and show discovered
+    stores only. Acceptable for a linear single-session flow; multi-portfolio
+    versioning is the named future extension.
 - Persist accepted rows to `portfolio_store`. `location` stays NULL for
   rows missing lat/long — those get geocoded later, in Cycle 3, but only
   if they fall inside a market's boundary (geocoding everything eagerly

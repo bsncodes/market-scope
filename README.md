@@ -1,1 +1,40 @@
-# market-scope
+# MarketScope
+
+See where your stores sit relative to the wider retail universe in a city:
+upload your portfolio, draw a market boundary on a map, discover other stores
+inside it, and visualise everything on a dashboard.
+
+- `api/` — Node.js + TypeScript service (Postgres/PostGIS, Redis, BullMQ)
+- `app/` — Vite + React + TypeScript frontend
+
+## Setup
+
+Requires Docker and Node.js.
+
+```bash
+cp .env.example .env          # DATABASE_URL, Redis, API base URLs, tuning knobs
+docker compose up -d          # Postgres + PostGIS, Redis
+cd api && npm install
+npm run init:setup            # migrate:up + seed (India reference data, categories)
+```
+
+`init:setup` deliberately does not start Docker — container lifecycle is a
+separate concern from schema/data setup, so the two stay independently
+re-runnable. Both steps are idempotent and safe to re-run.
+
+Running Postgres locally instead of via Docker? Create the database first
+(`createdb market_scope`), since a migration runs *inside* a database and can't
+create the one it runs in.
+
+## Development
+
+```bash
+cd api && npm run migrate:up      # apply migrations
+cd api && npm run migrate:down    # roll back one migration
+cd api && npm run seed            # re-seed reference data
+cd api && npm run typecheck
+cd app && npm run dev             # frontend dev server
+```
+
+> Architecture decisions, known limitations, and production-readiness notes are
+> written up in Cycle 5 — see `cycles/05-tests-readme-hardening.md`.

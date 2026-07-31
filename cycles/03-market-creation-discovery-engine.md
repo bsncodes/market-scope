@@ -114,6 +114,24 @@ logic in the project:
 - `GET /markets/:id/status` → `{ status, progress? }` where `progress` can
   be as coarse as "tiles fetched / tiles total" — good enough for the
   frontend's 10s poll loop in Cycle 4.
+- On successful completion, set `market.last_discovered_at = now()`
+  (migration `007`) — Cycle 4 reads it for the "Discovered `<date>`" label.
+
+## 3.6 Cache cleanup — deliberately not built
+
+The §3.5 BullMQ repeatable cleanup job stays unbuilt, and the README should
+say why rather than list it as unfinished:
+
+- `discovered_store` hangs off `tile_fetch`, with nothing linking a market to
+  its tiles (that decoupling is exactly what makes tiles reusable, §3.3). So
+  deleting a stale `tile_fetch` cascades its stores away and **silently empties
+  an existing market's dashboard** — the dashboard reads straight from Postgres
+  and never re-runs discovery (§3.6 of the knowledge doc).
+- Deleting safely would mean decoding every `tile_key` back into a polygon and
+  spatially testing it against every live market boundary. Real work, no
+  user-visible benefit at take-home scale.
+- Read-time freshness already guarantees *correctness* for the discovery path;
+  cleanup was only ever about reclaiming space.
 
 ---
 
