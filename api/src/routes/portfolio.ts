@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { badRequest } from '../errors';
 import { countPortfolioStores } from '../repositories/portfolio';
-import { replacePortfolioFromCsv } from '../services/portfolio';
+import { replacePortfolioFromCsv } from '../controllers/portfolio';
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 

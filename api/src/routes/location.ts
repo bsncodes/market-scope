@@ -8,7 +8,7 @@ import {
   listStates,
   stateExists,
 } from '../repositories/location';
-import { getCityBbox } from '../services/geocode';
+import { getCityBbox } from '../controllers/geocode';
 
 export const locationRouter = Router();
 

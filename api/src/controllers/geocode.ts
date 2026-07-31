@@ -1,5 +1,6 @@
 import { config } from '../config';
 import { badGateway, notFound } from '../errors';
+import { HttpError, http } from '../http';
 import { findCityForGeocoding, saveCityBbox } from '../repositories/location';
 import type { CityBbox } from '../types/location';
 
@@ -32,29 +33,25 @@ export async function getCityBbox(cityId: number): Promise<CityBbox> {
 }
 
 async function fetchBboxFromNominatim(query: string): Promise<CityBbox> {
-  const url = new URL('/search', config.nominatimBaseUrl);
-  url.searchParams.set('q', query);
-  url.searchParams.set('format', 'json');
-  url.searchParams.set('limit', '1');
-
-  let response: Response;
+  let results: NominatimResult[];
   try {
-    response = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+    results = await http.get<NominatimResult[]>('/search', {
+      baseUrl: config.nominatimBaseUrl,
+      params: { q: query, format: 'json', limit: 1 },
+      headers: { 'User-Agent': USER_AGENT },
+    });
   } catch (err) {
-    throw badGateway(
-      'geocoding_unreachable',
-      `Could not reach the geocoding service: ${(err as Error).message}`,
-    );
+    if (err instanceof HttpError) {
+      // A null status means the request never reached the service at all,
+      // which is worth separating from a bad response.
+      throw badGateway(
+        err.status === null ? 'geocoding_unreachable' : 'geocoding_failed',
+        err.message,
+      );
+    }
+    throw err;
   }
 
-  if (!response.ok) {
-    throw badGateway(
-      'geocoding_failed',
-      `Geocoding service returned ${response.status}.`,
-    );
-  }
-
-  const results = (await response.json()) as NominatimResult[];
   const box = results[0]?.boundingbox;
   if (!box) {
     throw notFound(
