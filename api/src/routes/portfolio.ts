@@ -23,7 +23,6 @@ const upload = multer({
     if (!isCsv) {
       cb(
         badRequest(
-          'unsupported_file_type',
           `Only .csv files are accepted, received "${file.originalname}".`,
         ),
       );
@@ -37,10 +36,7 @@ export const portfolioRouter = Router();
 
 portfolioRouter.post('/upload', upload.single('file'), async (req, res) => {
   if (!req.file) {
-    throw badRequest(
-      'file_missing',
-      'No file uploaded. Attach a CSV as the "file" field.',
-    );
+    throw badRequest('No file uploaded. Attach a CSV as the "file" field.');
   }
   res
     .status(HttpStatus.Created)

@@ -21,7 +21,7 @@ interface NominatimResult {
 export async function getCityBbox(cityId: number): Promise<CityBbox> {
   const city = await findCityForGeocoding(cityId);
   if (!city) {
-    throw notFound('city_not_found', `No city with id ${cityId}.`);
+    throw notFound(`No city with id ${cityId}.`);
   }
 
   if (city.bbox) return city.bbox;
@@ -43,27 +43,24 @@ async function fetchBboxFromNominatim(query: string): Promise<CityBbox> {
   } catch (err) {
     if (err instanceof HttpError) {
       // A null status means the request never reached the service at all,
-      // which is worth separating from a bad response.
-      throw badGateway(
-        err.status === null ? 'geocoding_unreachable' : 'geocoding_failed',
-        err.message,
-      );
+      // which reads differently from a bad response.
+      const cause =
+        err.status === null
+          ? 'could not be reached'
+          : `responded with ${err.status}`;
+      throw badGateway(`The geocoding service ${cause}.`);
     }
     throw err;
   }
 
   const box = results[0]?.boundingbox;
   if (!box) {
-    throw notFound(
-      'geocoding_no_result',
-      `No geocoding result for "${query}".`,
-    );
+    throw notFound(`No geocoding result for "${query}".`);
   }
 
   const [south, north, west, east] = box.map(Number);
   if (![south, north, west, east].every(Number.isFinite)) {
     throw badGateway(
-      'geocoding_malformed',
       `Geocoding service returned an unparseable bounding box for "${query}".`,
     );
   }

@@ -33,13 +33,12 @@ export function parsePortfolioCsv(buffer: Buffer): PortfolioRow[] {
     });
   } catch (err) {
     throw badRequest(
-      'csv_unparseable',
       `The file could not be parsed as CSV: ${(err as Error).message}`,
     );
   }
 
   if (records.length === 0) {
-    throw badRequest('csv_empty', 'The file contains no data rows.');
+    throw badRequest('The file contains no data rows.');
   }
 
   assertHeaders(records[0]);
@@ -52,7 +51,6 @@ export function parsePortfolioCsv(buffer: Buffer): PortfolioRow[] {
   if (errors.length > 0) {
     const shown = errors.slice(0, MAX_REPORTED_ERRORS);
     throw badRequest(
-      'csv_invalid_rows',
       `File rejected: ${errors.length} invalid row${errors.length > 1 ? 's' : ''}. No stores were imported.`,
       {
         error_count: errors.length,
@@ -85,7 +83,6 @@ function assertHeaders(sample: Record<string, string>): void {
 
   if (missing.length > 0) {
     throw badRequest(
-      'csv_missing_columns',
       `Missing required column${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}.`,
       { missing, expected: [...REQUIRED_HEADERS, ...OPTIONAL_HEADERS] },
     );
