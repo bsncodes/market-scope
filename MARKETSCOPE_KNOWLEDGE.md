@@ -50,10 +50,10 @@ everything.**
 
 ## 2. Tech stack (decided)
 
-- **Monorepo** — `/marketscope-app` and `/marketscope-api`, single clone, single
+- **Monorepo** — `/app` and `/api`, single clone, single
   README. Keep it simple (no Nx/Turborepo needed).
-- **Frontend** (`marketscope-app`) — Vite + React + TypeScript.
-- **Backend** (`marketscope-api`) — Node.js + TypeScript.
+- **Frontend** (`app`) — Vite + React + TypeScript.
+- **Backend** (`api`) — Node.js + TypeScript.
 - **Database** — PostgreSQL **with PostGIS** (spatial types, `ST_Contains`,
   `ST_DWithin`, GiST indexes).
 - **Cache / queue** — Redis (hot cache + BullMQ backing).
@@ -82,10 +82,8 @@ These are the decisions to defend in a follow-up conversation. Each has a *why*.
 
 - **Geocode data** = address → coordinates. **Immutable** (an address's
   coordinates never change). Cache **forever**, never expire, never delete.
-  Source: Nominatim.
 - **Discovered data** = the stores found in an area. **Mutable** (stores open /
-  close). Cache with a **freshness window** and re-fetch when stale. Source:
-  Overpass.
+  close). Cache with a **freshness window** and re-fetch when stale.
 
 This distinction drives separate tables and separate cleanup rules. It's the
 single most important modeling idea in the project.

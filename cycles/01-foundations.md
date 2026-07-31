@@ -11,8 +11,8 @@ against real PostGIS.
 
 ## 1.1 Monorepo skeleton
 
-- `/marketscope-app` — Vite + React app (empty scaffold is fine for now).
-- `/marketscope-api` — Node.js service.
+- `/app` — Vite + React app (empty scaffold is fine for now).
+- `/api` — Node.js service.
 - `docker-compose.yml` at repo root with two services:
   - `postgres` — PostGIS-enabled image (e.g. `postgis/postgis`), exposing
     `POSTGRES_DB=market_scope`, `POSTGRES_USER`, `POSTGRES_PASSWORD`.
@@ -28,7 +28,7 @@ against real PostGIS.
 
 - Pick **node-pg-migrate** (recommended in §5 — takes raw SQL naturally,
   gives real tracked up/down, wires into `package.json`).
-- Migration files live under `marketscope-api/migrations/` — migrations are a
+- Migration files live under `api/migrations/` — migrations are a
   backend concern (they define the schema the backend queries), the
   frontend never touches them, so root-level would be the wrong altitude
   for a single-service monorepo like this.
@@ -42,7 +42,7 @@ against real PostGIS.
      `updated_at` trigger.
   5. `005_portfolio` — portfolio_store, portfolio_store_market.
   6. `006_caching` — geocode_cache, tile_fetch, discovered_store.
-- Wire `npm run migrate:up` / `npm run migrate:down` in `marketscope-api/package.json`.
+- Wire `npm run migrate:up` / `npm run migrate:down` in `api/package.json`.
 - **Database creation is not a script — it's `docker-compose.yml`'s job.**
   A migration runs *inside* a database and can't create the one it runs
   in, so `market_scope` has to exist before `migrate:up` ever runs. The
@@ -91,7 +91,7 @@ a real checklist, not a formality:
 - **Source: an npm package** with India state/city reference data (e.g.
   `country-state-city` or equivalent — confirm it's maintained and its
   India data is current before pinning it), not a hand-maintained CSV.
-  Add it as a `marketscope-api` dependency, and have the seed script import it
+  Add it as an `api` dependency, and have the seed script import it
   and transform/filter to India only at seed-time.
 - This is still **fully offline** and still **no external API call** —
   the data is resolved from the installed package at seed-time, not
@@ -105,7 +105,7 @@ a real checklist, not a formality:
   state-code conventions), the seed script needs an explicit mapping step
   — write it as a small transform function, not inline ad-hoc code, so
   it's easy to re-run if the package updates.
-- **Runner shape**: a single seed script (e.g. `marketscope-api/scripts/seed.ts`,
+- **Runner shape**: a single seed script (e.g. `api/scripts/seed.ts`,
   wired as `npm run seed`) that calls one seed function per table, in
   dependency order — `seedCountry()` → `seedStates(countryId)` →
   `seedCities(stateIds)` → `seedCategories()`. Each function owns its own
