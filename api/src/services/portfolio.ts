@@ -5,15 +5,15 @@ import {
   normalizeHeader,
   parseCoordinate,
   recordIndexToLine,
-} from '../helpers/csv.helper';
-import { replacePortfolio } from '../repositories/portfolio.repo';
+} from '../helpers/csv';
+import { replacePortfolio } from '../repositories/portfolio';
 import {
   OPTIONAL_HEADERS,
   REQUIRED_HEADERS,
   type PortfolioRow,
   type RowError,
   type UploadResult,
-} from '../types/portfolio.types';
+} from '../types/portfolio';
 
 const MAX_REPORTED_ERRORS = 50;
 

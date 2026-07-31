@@ -4,8 +4,7 @@ import express, {
 } from 'express';
 import { MulterError } from 'multer';
 import { AppError } from './errors';
-import { portfolioRouter } from './routes/portfolio.routes';
-import { referenceRouter } from './routes/reference.routes';
+import { apiRouter } from './routes';
 
 const notFoundHandler: RequestHandler = (req, res) => {
   res.status(404).json({
@@ -51,8 +50,7 @@ export function createServer() {
   app.use(express.json());
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
-  app.use(referenceRouter);
-  app.use(portfolioRouter);
+  app.use('/api', apiRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -15,11 +15,6 @@ export interface City {
   name: string;
 }
 
-export interface Category {
-  id: number;
-  label: string;
-}
-
 export interface CityBbox {
   min_lat: number;
   min_lng: number;

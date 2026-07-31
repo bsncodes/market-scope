@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { badRequest } from '../errors';
-import { countPortfolioStores } from '../repositories/portfolio.repo';
-import { replacePortfolioFromCsv } from '../services/portfolio.service';
+import { countPortfolioStores } from '../repositories/portfolio';
+import { replacePortfolioFromCsv } from '../services/portfolio';
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
@@ -34,20 +34,16 @@ const upload = multer({
 
 export const portfolioRouter = Router();
 
-portfolioRouter.post(
-  '/portfolio/upload',
-  upload.single('file'),
-  async (req, res) => {
-    if (!req.file) {
-      throw badRequest(
-        'file_missing',
-        'No file uploaded. Attach a CSV as the "file" field.',
-      );
-    }
-    res.status(201).json(await replacePortfolioFromCsv(req.file.buffer));
-  },
-);
+portfolioRouter.post('/upload', upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    throw badRequest(
+      'file_missing',
+      'No file uploaded. Attach a CSV as the "file" field.',
+    );
+  }
+  res.status(201).json(await replacePortfolioFromCsv(req.file.buffer));
+});
 
-portfolioRouter.get('/portfolio/summary', async (_req, res) => {
+portfolioRouter.get('/summary', async (_req, res) => {
   res.json(await countPortfolioStores());
 });

@@ -1,5 +1,5 @@
 import { pool } from '../db';
-import type { PortfolioRow } from '../types/portfolio.types';
+import type { PortfolioRow } from '../types/portfolio';
 
 /**
  * Replaces the entire portfolio in one transaction (cycles/02 §2.1). The

@@ -1,4 +1,4 @@
-import type { CoordinateColumn, RowError } from '../types/portfolio.types';
+import type { CoordinateColumn, RowError } from '../types/portfolio';
 
 const COORDINATE_LIMITS: Record<CoordinateColumn, number> = {
   latitude: 90,

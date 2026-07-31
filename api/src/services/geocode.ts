@@ -1,10 +1,7 @@
 import { config } from '../config';
 import { badGateway, notFound } from '../errors';
-import {
-  findCityForGeocoding,
-  saveCityBbox,
-} from '../repositories/reference.repo';
-import type { CityBbox } from '../types/reference.types';
+import { findCityForGeocoding, saveCityBbox } from '../repositories/location';
+import type { CityBbox } from '../types/location';
 
 // Nominatim's usage policy requires a User-Agent identifying the application.
 const USER_AGENT = 'MarketScope/1.0 (take-home project)';

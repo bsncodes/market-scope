@@ -1,12 +1,11 @@
 import { pool } from '../db';
 import type {
-  Category,
   City,
   CityBbox,
   CityForGeocoding,
   Country,
   State,
-} from '../types/reference.types';
+} from '../types/location';
 
 export async function listCountries(): Promise<Country[]> {
   const { rows } = await pool.query<Country>(
@@ -31,13 +30,20 @@ export async function listCities(stateId: number): Promise<City[]> {
   return rows;
 }
 
-// `value` holds the OSM tag expressions used by discovery and is deliberately
-// not exposed to clients.
-export async function listCategories(): Promise<Category[]> {
-  const { rows } = await pool.query<Category>(
-    'SELECT id, label FROM category ORDER BY label',
-  );
-  return rows;
+// Nested routes should 404 on a missing parent rather than return an empty
+// list, which would read as "this country has no states".
+export async function countryExists(countryId: number): Promise<boolean> {
+  const { rowCount } = await pool.query('SELECT 1 FROM country WHERE id = $1', [
+    countryId,
+  ]);
+  return rowCount === 1;
+}
+
+export async function stateExists(stateId: number): Promise<boolean> {
+  const { rowCount } = await pool.query('SELECT 1 FROM state WHERE id = $1', [
+    stateId,
+  ]);
+  return rowCount === 1;
 }
 
 export async function findCityForGeocoding(
