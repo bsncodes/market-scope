@@ -13,8 +13,9 @@ export class HttpError extends Error {
     readonly status: number | null,
     message: string,
     readonly body?: unknown,
+    cause?: unknown,
   ) {
-    super(message);
+    super(message, { cause });
     this.name = 'HttpError';
   }
 }
@@ -57,9 +58,16 @@ function toHttpError(err: unknown, url: string): HttpError {
       status,
       `Request to ${url} failed: ${detail}`,
       err.response?.data,
+      err,
     );
   }
-  return new HttpError(url, null, `Request to ${url} failed: ${String(err)}`);
+  return new HttpError(
+    url,
+    null,
+    `Request to ${url} failed: ${String(err)}`,
+    undefined,
+    err,
+  );
 }
 
 // The only HTTP entry point for the app. Controllers call these rather than

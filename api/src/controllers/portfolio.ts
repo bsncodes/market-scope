@@ -2,9 +2,9 @@ import { parse } from 'csv-parse/sync';
 import { malformedPayload, resourceValidationFailed } from '../errors';
 import {
   blankToNull,
+  findDuplicates,
   normalizeHeader,
   parseCoordinate,
-  recordIndexToLine,
 } from '../helpers/csv';
 import { replacePortfolio } from '../repositories/portfolio';
 import {
@@ -17,19 +17,31 @@ import {
 
 const MAX_REPORTED_ERRORS = 50;
 
+// `info: true` makes csv-parse return the source line alongside each record.
+interface ParsedRecord {
+  record: Record<string, string>;
+  info: { lines: number };
+}
+
 /**
  * Validation runs cheapest-first: parseability, then headers, then rows.
  * Row errors accumulate so a single attempt reports every problem, but any
  * error rejects the whole file — nothing is imported (cycles/02 §2.1).
  */
 export function parsePortfolioCsv(buffer: Buffer): PortfolioRow[] {
-  let records: Record<string, string>[];
+  let headers: string[] = [];
+  let records: ParsedRecord[];
+
   try {
     records = parse(buffer, {
-      columns: (header: string[]) => header.map(normalizeHeader),
+      columns: (header: string[]) => {
+        headers = header.map(normalizeHeader);
+        return headers;
+      },
       skip_empty_lines: true,
       trim: true,
       bom: true,
+      info: true,
     });
   } catch (err) {
     throw malformedPayload(
@@ -37,15 +49,19 @@ export function parsePortfolioCsv(buffer: Buffer): PortfolioRow[] {
     );
   }
 
+  // Headers are checked before row count so a file with the wrong columns is
+  // reported as such rather than as "no data rows".
+  assertHeaders(headers);
+
   if (records.length === 0) {
     throw resourceValidationFailed('The file contains no data rows.');
   }
 
-  assertHeaders(records[0]);
-
   const errors: RowError[] = [];
-  const rows = records.map((record, index) =>
-    validateRow(record, recordIndexToLine(index), errors),
+  // info.lines is the real source line. Deriving it from the record index
+  // would drift, since skip_empty_lines removes blank lines from this array.
+  const rows = records.map(({ record, info }) =>
+    validateRow(record, info.lines, errors),
   );
 
   if (errors.length > 0) {
@@ -77,10 +93,19 @@ export async function replacePortfolioFromCsv(
   };
 }
 
-function assertHeaders(sample: Record<string, string>): void {
-  const present = new Set(Object.keys(sample));
-  const missing = REQUIRED_HEADERS.filter((header) => !present.has(header));
+function assertHeaders(headers: string[]): void {
+  // Duplicates collapse silently during parsing: the last column of a repeated
+  // name wins and any column it displaced disappears.
+  const duplicated = findDuplicates(headers);
+  if (duplicated.length > 0) {
+    throw resourceValidationFailed(
+      `Duplicate column${duplicated.length > 1 ? 's' : ''}: ${duplicated.join(', ')}.`,
+      { duplicated },
+    );
+  }
 
+  const present = new Set(headers);
+  const missing = REQUIRED_HEADERS.filter((header) => !present.has(header));
   if (missing.length > 0) {
     throw resourceValidationFailed(
       `Missing required column${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}.`,

@@ -14,6 +14,16 @@ export function blankToNull(value: string | undefined): string | null {
   return trimmed === '' ? null : trimmed;
 }
 
+export function findDuplicates(values: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const duplicated = new Set<string>();
+  for (const value of values) {
+    if (seen.has(value)) duplicated.add(value);
+    seen.add(value);
+  }
+  return [...duplicated];
+}
+
 /**
  * Returns the parsed coordinate, or null when absent or invalid. Invalid
  * values push onto `errors` rather than throwing, so one pass reports every
@@ -49,10 +59,4 @@ export function parseCoordinate(
   }
 
   return parsed;
-}
-
-// +2 maps a zero-based record index onto the line number the user sees:
-// 1-based, and offset past the header row.
-export function recordIndexToLine(index: number): number {
-  return index + 2;
 }

@@ -48,14 +48,16 @@ export async function replacePortfolio(rows: PortfolioRow[]): Promise<number> {
   }
 }
 
+// count() returns bigint, which db.ts already parses into a number via the
+// OID 20 type parser — so these arrive numeric, not as strings.
 export async function countPortfolioStores(): Promise<{
   total: number;
   located: number;
 }> {
-  const { rows } = await pool.query<{ total: string; located: string }>(
+  const { rows } = await pool.query<{ total: number; located: number }>(
     `SELECT count(*) AS total,
             count(location) AS located
      FROM portfolio_store`,
   );
-  return { total: Number(rows[0].total), located: Number(rows[0].located) };
+  return rows[0];
 }
