@@ -69,6 +69,20 @@ export async function apiUpload<T = unknown>(
   );
 }
 
+export async function apiPostJson<T = unknown>(
+  path: string,
+  body: unknown,
+): Promise<ApiResponse<T>> {
+  const url = await startTestServer();
+  return toResponse<T>(
+    await fetch(`${url}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
 export async function apiPost<T = unknown>(
   path: string,
 ): Promise<ApiResponse<T>> {

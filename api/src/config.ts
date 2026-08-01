@@ -61,4 +61,13 @@ export const config = {
   tileSizeKm: numeric('TILE_SIZE_KM', 1),
   discoveryFreshnessDays: numeric('DISCOVERY_FRESHNESS_DAYS', 5),
   redisCacheTtlDays: numeric('REDIS_CACHE_TTL_DAYS', 1),
+
+  // Nominatim's usage policy is one request per second. Overpass has no fixed
+  // published rate but throttles by slot availability, so it is paced too.
+  nominatimMinIntervalMs: numeric('NOMINATIM_MIN_INTERVAL_MS', 1100),
+  overpassMinIntervalMs: numeric('OVERPASS_MIN_INTERVAL_MS', 1000),
+  overpassTimeoutSeconds: numeric('OVERPASS_TIMEOUT_SECONDS', 25),
+
+  discoveryJobAttempts: numeric('DISCOVERY_JOB_ATTEMPTS', 3),
+  discoveryJobBackoffMs: numeric('DISCOVERY_JOB_BACKOFF_MS', 5000),
 } as const;

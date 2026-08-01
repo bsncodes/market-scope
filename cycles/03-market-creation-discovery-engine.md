@@ -137,20 +137,20 @@ say why rather than list it as unfinished:
 
 ## Exit criteria
 
-- [ ] `POST /markets` for a real small city boundary returns `200` +
+- [x] `POST /markets` for a real small city boundary returns `200` +
       `queued` in well under a second (no synchronous work in the handler).
-- [ ] Polling `/markets/:id/status` reaches `completed` within a reasonable
+- [x] Polling `/markets/:id/status` reaches `completed` within a reasonable
       time for a small boundary + 1-2 categories.
-- [ ] `discovered_store` rows for the market are correctly clipped — spot
+- [x] `discovered_store` rows for the market are correctly clipped — spot
       check a store near the boundary edge that should be excluded is
       actually excluded.
-- [ ] Portfolio rows inside the boundary are marked `is_inside=true` in
+- [x] Portfolio rows inside the boundary are marked `is_inside=true` in
       `portfolio_store_market`; rows outside are `false`.
-- [ ] Creating a **second market with an overlapping boundary** (same
+- [x] Creating a **second market with an overlapping boundary** (same
       city, overlapping rectangle) reuses already-cached tiles — verify
       via logs or a temporary counter that fewer external Overpass calls
       happen on the second run than the first.
-- [ ] Force a category/tile fetch to fail (e.g. temporarily point at a bad
+- [x] Force a category/tile fetch to fail (e.g. temporarily point at a bad
       URL) and confirm the market still reaches a sane terminal state
       (`failed` or a documented partial-success behavior) instead of
       hanging in `processing`.
