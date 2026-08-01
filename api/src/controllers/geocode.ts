@@ -15,7 +15,10 @@ const USER_AGENT = 'MarketScope/1.0 (take-home project)';
 
 // Nominatim allows roughly one request per second. The worker geocodes
 // portfolio rows in a loop, so every call goes through one shared limiter.
-const limiter = new RateLimiter(config.nominatimMinIntervalMs);
+const limiter = new RateLimiter(
+  config.nominatimRatePerSecond,
+  config.nominatimBurst,
+);
 
 interface NominatimResult {
   lat?: string;

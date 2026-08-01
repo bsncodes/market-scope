@@ -12,7 +12,10 @@ const USER_AGENT = 'MarketScope/1.0 (take-home project)';
 
 // One shared limiter per process: the worker loops over tiles, so without
 // pacing a single market could fire dozens of requests back to back.
-const limiter = new RateLimiter(config.overpassMinIntervalMs);
+const limiter = new RateLimiter(
+  config.overpassRatePerSecond,
+  config.overpassBurst,
+);
 
 export class OverpassError extends Error {
   constructor(

@@ -19,9 +19,13 @@ process.env.NOMINATIM_BASE_URL = `http://127.0.0.1:${NOMINATIM_STUB_PORT}`;
 process.env.OVERPASS_BASE_URL = `http://127.0.0.1:${OVERPASS_STUB_PORT}`;
 
 // Pacing exists for the real services' fair-use limits. Against local stubs it
-// would only make the suite slow, so drop it to near zero.
-process.env.NOMINATIM_MIN_INTERVAL_MS = '0';
-process.env.OVERPASS_MIN_INTERVAL_MS = '0';
+// would only make the suite slow, so raise the rate far above what any test
+// needs. Rates must stay positive — the bucket rejects zero, which would
+// otherwise mean "never refills".
+process.env.NOMINATIM_RATE_PER_SECOND = '100000';
+process.env.NOMINATIM_BURST = '100000';
+process.env.OVERPASS_RATE_PER_SECOND = '100000';
+process.env.OVERPASS_BURST = '100000';
 
 // Integration tests mutate portfolio_store, markets and city bboxes. Set
 // TEST_DATABASE_URL to run them against a throwaway database instead.
