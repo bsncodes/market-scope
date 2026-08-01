@@ -1,6 +1,5 @@
 {
   "require": ["tsx/cjs", "test/setup.ts"],
-  "spec": ["test/**/*.test.ts"],
   "timeout": 20000,
   "slow": 2000,
   "exit": true

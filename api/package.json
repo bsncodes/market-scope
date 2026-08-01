@@ -10,9 +10,9 @@
     "init:setup": "npm run migrate:up && npm run seed",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "mocha",
-    "test:unit": "mocha --spec 'test/unit/**/*.test.ts'",
-    "test:integration": "mocha --spec 'test/integration/**/*.test.ts'"
+    "test": "mocha 'test/**/*.test.ts'",
+    "test:unit": "mocha 'test/unit/**/*.test.ts'",
+    "test:integration": "mocha 'test/integration/**/*.test.ts'"
   },
   "keywords": [],
   "author": "",

@@ -56,12 +56,31 @@ jobs:
       - uses: ./.github/actions/setup
       - run: npm run build --workspace ${{ matrix.workspace }}
 
-  # Integration tests hit a real PostGIS instance: the geography columns,
-  # spatial functions and CHECK constraints are exactly what they assert, so a
-  # stub or sqlite would test nothing that matters. Geocoding is stubbed
-  # in-process, so nothing here reaches the real Nominatim.
-  test:
-    name: Test (api)
+  # Pure logic — CSV parsing, coordinate validation, param coercion. No
+  # database, so this reports in seconds and a failure here is unambiguously a
+  # logic regression rather than an environment problem.
+  test-unit:
+    name: Test unit (api)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # Never connected to. config.ts requires DATABASE_URL to be present, and
+    # the unit specs reach src/db transitively through the controller, but pg
+    # opens no socket until something issues a query — and none of them do.
+    env:
+      DATABASE_URL: postgres://unused:unused@127.0.0.1:1/unused
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: npm run test:unit --workspace api
+
+  # Runs against real PostGIS: the geography columns, ST_MakePoint ordering and
+  # CHECK constraints are exactly what these assert, so a stub or sqlite would
+  # verify nothing that matters. Geocoding is stubbed in-process, so nothing
+  # here reaches the real Nominatim.
+  test-integration:
+    name: Test integration (api)
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -90,4 +109,12 @@ jobs:
       - name: Apply migrations and seed reference data
         run: npm run init:setup --workspace api
 
-      - run: npm test --workspace api
+      # Fails loudly if the suite silently stops covering the database, rather
+      # than reporting green on zero integration tests.
+      - name: Verify integration specs exist
+        run: |
+          count=$(find api/test/integration -name '*.test.ts' | wc -l)
+          echo "integration spec files: $count"
+          test "$count" -gt 0
+
+      - run: npm run test:integration --workspace api
