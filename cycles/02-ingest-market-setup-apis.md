@@ -46,13 +46,13 @@ cycle is API-only and testable with curl/Postman.
 
 ## 2.2 Market-setup APIs (functional step 2)
 
-- `GET /countries` — from seeded `country` table.
-- `GET /states?country_id=` — cascading, from `state`.
-- `GET /cities?state_id=` — cascading, from `city`.
-- `GET /categories` — from seeded `category` table, returns `id` + `label`
+- `GET /api/location/countries` — from seeded `country` table.
+- `GET /api/location/countries/:countryId/states` — cascading, from `state`.
+- `GET /api/location/states/:stateId/cities` — cascading, from `city`.
+- `GET /api/categories` — from seeded `category` table, returns `id` + `label`
   (never expose raw OSM `value` tags to the frontend — that's an internal
   discovery detail).
-- `GET /cities/:id/bbox` — returns the city's bounding box for the initial
+- `GET /api/location/cities/:cityId/bbox` — returns the city's bounding box for the initial
   map rectangle:
   - If `city.min_lat/min_lng/max_lat/max_lng` are already populated,
     return them directly (cache hit, no external call).
@@ -65,15 +65,15 @@ cycle is API-only and testable with curl/Postman.
 
 ## Exit criteria
 
-- [ ] Uploading a CSV with one deliberately malformed row (bad header, bad
+- [x] Uploading a CSV with one deliberately malformed row (bad header, bad
       lat/long, missing required field) produces a clear, specific error —
       not a generic 500 or silent drop — consistent with the chosen
       row-failure policy.
-- [ ] Uploading a fully valid CSV persists all rows to `portfolio_store`
+- [x] Uploading a fully valid CSV persists all rows to `portfolio_store`
       with `location` NULL where lat/long weren't provided.
-- [ ] `GET /states?country_id=` and `GET /cities?state_id=` return only
+- [x] The nested location endpoints return only
       children of the given parent — no leakage across countries/states.
-- [ ] `GET /cities/:id/bbox` called twice for the same never-geocoded city:
+- [x] `GET /api/location/cities/:cityId/bbox` called twice for the same never-geocoded city:
       the first call populates `city.min_lat` etc.; the second call
       returns the same values without a second Nominatim request
       (confirm via logs or a temporary call counter).
