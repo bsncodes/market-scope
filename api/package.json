@@ -10,7 +10,9 @@
     "init:setup": "npm run migrate:up && npm run seed",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha",
+    "test:unit": "mocha --spec 'test/unit/**/*.test.ts'",
+    "test:integration": "mocha --spec 'test/integration/**/*.test.ts'"
   },
   "keywords": [],
   "author": "",
@@ -28,9 +30,11 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
+    "@types/mocha": "^10.0.10",
     "@types/multer": "^2.2.0",
     "@types/node": "^26.1.2",
     "@types/pg": "^8.20.0",
+    "mocha": "^11.7.6",
     "tsx": "^4.23.1",
     "typescript": "^7.0.2"
   }

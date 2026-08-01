@@ -55,3 +55,39 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       - run: npm run build --workspace ${{ matrix.workspace }}
+
+  # Integration tests hit a real PostGIS instance: the geography columns,
+  # spatial functions and CHECK constraints are exactly what they assert, so a
+  # stub or sqlite would test nothing that matters. Geocoding is stubbed
+  # in-process, so nothing here reaches the real Nominatim.
+  test:
+    name: Test (api)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: market_scope_test
+          POSTGRES_USER: market_scope
+          POSTGRES_PASSWORD: market_scope
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U market_scope -d market_scope_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+
+    env:
+      DATABASE_URL: postgres://market_scope:market_scope@localhost:5432/market_scope_test
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      - name: Apply migrations and seed reference data
+        run: npm run init:setup --workspace api
+
+      - run: npm test --workspace api
