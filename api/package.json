@@ -8,7 +8,7 @@
     "migrate:down": "node-pg-migrate down --envPath ../.env",
     "seed": "tsx scripts/seed.ts",
     "init:setup": "npm run migrate:up && npm run seed",
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "mocha",
     "test:unit": "mocha --spec 'test/unit/**/*.test.ts'",

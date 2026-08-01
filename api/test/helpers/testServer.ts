@@ -57,7 +57,13 @@ export async function apiUpload<T = unknown>(
 ): Promise<ApiResponse<T>> {
   const url = await startTestServer();
   const form = new FormData();
-  form.append('file', new Blob([file], { type: contentType }), filename);
+  // Buffer is not a valid BlobPart under @types/node's stricter ArrayBuffer
+  // generics, so hand Blob a plain view over the same bytes.
+  form.append(
+    'file',
+    new Blob([new Uint8Array(file)], { type: contentType }),
+    filename,
+  );
   return toResponse<T>(
     await fetch(`${url}${path}`, { method: 'POST', body: form }),
   );
