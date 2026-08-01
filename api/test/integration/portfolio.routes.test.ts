@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+import { expect } from 'chai';
 import { pool } from '../../src/db';
 import { ErrorCode } from '../../src/types/error';
 import { clearPortfolio, countPortfolioRows } from '../helpers/db';
@@ -28,13 +28,13 @@ describe('POST /api/portfolio/upload', () => {
         ),
       );
 
-      assert.equal(res.status, 201);
-      assert.deepEqual(res.body, {
+      expect(res.status).to.equal(201);
+      expect(res.body).to.deep.equal({
         imported: 2,
         with_coordinates: 1,
         awaiting_geocoding: 1,
       });
-      assert.equal(await countPortfolioRows(), 2);
+      expect(await countPortfolioRows()).to.equal(2);
     });
 
     it('leaves location NULL when coordinates were not supplied', async () => {
@@ -48,8 +48,8 @@ describe('POST /api/portfolio/upload', () => {
       const { rows } = await pool.query(
         'SELECT store_name, location FROM portfolio_store ORDER BY store_name',
       );
-      assert.notEqual(rows[0].location, null, 'Alpha should be located');
-      assert.equal(rows[1].location, null, 'Beta should await geocoding');
+      expect(rows[0].location, 'Alpha should be located').to.not.equal(null);
+      expect(rows[1].location, 'Beta should await geocoding').to.equal(null);
     });
 
     // ST_MakePoint takes (x, y). Reversing it is silent, so assert the stored
@@ -65,8 +65,8 @@ describe('POST /api/portfolio/upload', () => {
         `SELECT ST_X(location::geometry) AS lng, ST_Y(location::geometry) AS lat
          FROM portfolio_store`,
       );
-      assert.equal(Math.round(rows[0].lat * 1e4) / 1e4, 12.9716);
-      assert.equal(Math.round(rows[0].lng * 1e4) / 1e4, 77.5946);
+      expect(Math.round(rows[0].lat * 1e4) / 1e4).to.equal(12.9716);
+      expect(Math.round(rows[0].lng * 1e4) / 1e4).to.equal(77.5946);
     });
 
     it('replaces the previous portfolio rather than appending', async () => {
@@ -81,10 +81,7 @@ describe('POST /api/portfolio/upload', () => {
       const { rows } = await pool.query(
         'SELECT store_name FROM portfolio_store ORDER BY store_name',
       );
-      assert.deepEqual(
-        rows.map((r) => r.store_name),
-        ['Beta', 'Gamma'],
-      );
+      expect(rows.map((r) => r.store_name)).to.deep.equal(['Beta', 'Gamma']);
     });
   });
 
@@ -92,16 +89,16 @@ describe('POST /api/portfolio/upload', () => {
     // Reject-whole-file only means anything if the existing portfolio survives.
     it('leaves the existing portfolio untouched when the new file is invalid', async () => {
       await upload(csv('Alpha,1 St,B,K,India,X,12.9,77.5'));
-      assert.equal(await countPortfolioRows(), 1);
+      expect(await countPortfolioRows()).to.equal(1);
 
       const res = await upload(csv('Beta,2 St,B,K,India,X,999,77.5'));
-      assert.equal(res.status, 422);
+      expect(res.status).to.equal(422);
 
       const { rows } = await pool.query(
         'SELECT store_name FROM portfolio_store',
       );
-      assert.equal(rows.length, 1);
-      assert.equal(rows[0].store_name, 'Alpha');
+      expect(rows.length).to.equal(1);
+      expect(rows[0].store_name).to.equal('Alpha');
     });
 
     it('imports nothing when only one row of many is bad', async () => {
@@ -112,16 +109,16 @@ describe('POST /api/portfolio/upload', () => {
           'Gamma,3 St,B,K,India,X,999,77.5',
         ),
       );
-      assert.equal(res.status, 422);
-      assert.equal(await countPortfolioRows(), 0);
+      expect(res.status).to.equal(422);
+      expect(await countPortfolioRows()).to.equal(0);
     });
   });
 
   describe('request-level rejection', () => {
     it('400s when no file is attached', async () => {
       const res = await apiPost<ErrorBody>('/api/portfolio/upload');
-      assert.equal(res.status, 400);
-      assert.equal(res.body.error.code, ErrorCode.REQUEST_VALIDATION_FAILED);
+      expect(res.status).to.equal(400);
+      expect(res.body.error.code).to.equal(ErrorCode.REQUEST_VALIDATION_FAILED);
     });
 
     it('415s for a non-CSV file', async () => {
@@ -130,19 +127,19 @@ describe('POST /api/portfolio/upload', () => {
         'notes.txt',
         'text/plain',
       );
-      assert.equal(res.status, 415);
-      assert.equal(res.body.error.code, ErrorCode.UNSUPPORTED_MEDIA_TYPE);
+      expect(res.status).to.equal(415);
+      expect(res.body.error.code).to.equal(ErrorCode.UNSUPPORTED_MEDIA_TYPE);
     });
 
     it('413s when the file exceeds the size cap', async () => {
       const row =
         'Store,1 Long Street Name,Bengaluru,Karnataka,India,Supermarket,12.9,77.5\n';
       const big = Buffer.from(`${HEADER}\n${row.repeat(80_000)}`);
-      assert.ok(big.byteLength > 5 * 1024 * 1024);
+      expect(big.byteLength).to.be.greaterThan(5 * 1024 * 1024);
 
       const res = await upload<ErrorBody>(big, 'big.csv');
-      assert.equal(res.status, 413);
-      assert.equal(res.body.error.code, ErrorCode.PAYLOAD_TOO_LARGE);
+      expect(res.status).to.equal(413);
+      expect(res.body.error.code).to.equal(ErrorCode.PAYLOAD_TOO_LARGE);
     });
   });
 
@@ -151,9 +148,11 @@ describe('POST /api/portfolio/upload', () => {
       const res = await upload<ErrorBody>(
         Buffer.from('store_name,city,state,country,category\nA,B,C,D,E'),
       );
-      assert.equal(res.status, 422);
-      assert.equal(res.body.error.code, ErrorCode.RESOURCE_VALIDATION_FAILED);
-      assert.match(res.body.error.message, /address/);
+      expect(res.status).to.equal(422);
+      expect(res.body.error.code).to.equal(
+        ErrorCode.RESOURCE_VALIDATION_FAILED,
+      );
+      expect(res.body.error.message).to.match(/address/);
     });
 
     it('422s on duplicate columns', async () => {
@@ -163,16 +162,16 @@ describe('POST /api/portfolio/upload', () => {
             'A,1 St,B,K,India,X,12.9,99.9',
         ),
       );
-      assert.equal(res.status, 422);
-      assert.match(res.body.error.message, /Duplicate column/);
+      expect(res.status).to.equal(422);
+      expect(res.body.error.message).to.match(/Duplicate column/);
     });
 
     it('400s on a file that cannot be parsed at all', async () => {
       const res = await upload<ErrorBody>(
         Buffer.from(`${HEADER}\n"unterminated,1 St,B,K,India,X,1,2\n`),
       );
-      assert.equal(res.status, 400);
-      assert.equal(res.body.error.code, ErrorCode.MALFORMED_PAYLOAD);
+      expect(res.status).to.equal(400);
+      expect(res.body.error.code).to.equal(ErrorCode.MALFORMED_PAYLOAD);
     });
 
     // Regression: row numbers were derived from the record index, which drifts
@@ -192,16 +191,13 @@ describe('POST /api/portfolio/upload', () => {
         ),
       );
 
-      assert.equal(res.status, 422);
+      expect(res.status).to.equal(422);
       const details = res.body.error.details as {
         error_count: number;
         errors: { row: number }[];
       };
-      assert.equal(details.error_count, 2);
-      assert.deepEqual(
-        details.errors.map((e) => e.row),
-        [4, 7],
-      );
+      expect(details.error_count).to.equal(2);
+      expect(details.errors.map((e) => e.row)).to.deep.equal([4, 7]);
     });
   });
 });
@@ -218,9 +214,9 @@ describe('GET /api/portfolio/summary', () => {
     const res = await apiGet<{ total: number; located: number }>(
       '/api/portfolio/summary',
     );
-    assert.equal(res.status, 200);
-    assert.equal(typeof res.body.total, 'number');
-    assert.equal(typeof res.body.located, 'number');
-    assert.deepEqual(res.body, { total: 2, located: 1 });
+    expect(res.status).to.equal(200);
+    expect(typeof res.body.total).to.equal('number');
+    expect(typeof res.body.located).to.equal('number');
+    expect(res.body).to.deep.equal({ total: 2, located: 1 });
   });
 });

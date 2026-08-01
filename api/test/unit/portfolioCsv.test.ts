@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+import { expect } from 'chai';
 import { parsePortfolioCsv } from '../../src/controllers/portfolio';
 import { AppError } from '../../src/errors';
 import { ErrorCode } from '../../src/types/error';
@@ -13,8 +13,12 @@ function expectRejection(buffer: Buffer, code: ErrorCode): AppError {
   try {
     parsePortfolioCsv(buffer);
   } catch (err) {
-    assert.ok(err instanceof AppError, `expected AppError, got ${err}`);
-    assert.equal(err.code, code);
+    // A real guard rather than an assertion: chai does not narrow types the
+    // way node:assert's `asserts` signature did.
+    if (!(err instanceof AppError)) {
+      throw new Error(`expected an AppError, got ${String(err)}`);
+    }
+    expect(err.code).to.equal(code);
     return err;
   }
   throw new Error('expected parsePortfolioCsv to throw, but it returned');
@@ -27,8 +31,8 @@ describe('parsePortfolioCsv', () => {
         csv('Alpha Mart,12 MG Road,Bengaluru,Karnataka,India,Supermarket,,'),
       );
 
-      assert.equal(rows.length, 1);
-      assert.deepEqual(rows[0], {
+      expect(rows.length).to.equal(1);
+      expect(rows[0]).to.deep.equal({
         store_name: 'Alpha Mart',
         address: '12 MG Road',
         city: 'Bengaluru',
@@ -44,8 +48,8 @@ describe('parsePortfolioCsv', () => {
       const rows = parsePortfolioCsv(
         csv('Alpha,1 St,B,K,India,Supermarket,12.9716,77.5946'),
       );
-      assert.equal(rows[0].latitude, 12.9716);
-      assert.equal(rows[0].longitude, 77.5946);
+      expect(rows[0].latitude).to.equal(12.9716);
+      expect(rows[0].longitude).to.equal(77.5946);
     });
 
     it('accepts headers regardless of case and spacing', () => {
@@ -55,7 +59,7 @@ describe('parsePortfolioCsv', () => {
             'Alpha,1 St,B,K,India,X,12.9,77.5',
         ),
       );
-      assert.equal(rows[0].store_name, 'Alpha');
+      expect(rows[0].store_name).to.equal('Alpha');
     });
 
     it('tolerates a UTF-8 BOM, which spreadsheet exports add', () => {
@@ -65,7 +69,7 @@ describe('parsePortfolioCsv', () => {
           csv('Alpha,1 St,B,K,India,X,12.9,77.5'),
         ]),
       );
-      assert.equal(rows[0].store_name, 'Alpha');
+      expect(rows[0].store_name).to.equal('Alpha');
     });
   });
 
@@ -75,9 +79,9 @@ describe('parsePortfolioCsv', () => {
         Buffer.from('store_name,city,state,country\nA,B,C,D'),
         ErrorCode.RESOURCE_VALIDATION_FAILED,
       );
-      assert.match(err.message, /address/);
-      assert.match(err.message, /category/);
-      assert.deepEqual((err.details as { missing: string[] }).missing, [
+      expect(err.message).to.match(/address/);
+      expect(err.message).to.match(/category/);
+      expect((err.details as { missing: string[] }).missing).to.deep.equal([
         'address',
         'category',
       ]);
@@ -91,7 +95,7 @@ describe('parsePortfolioCsv', () => {
         ),
         ErrorCode.RESOURCE_VALIDATION_FAILED,
       );
-      assert.match(err.message, /Duplicate column/);
+      expect(err.message).to.match(/Duplicate column/);
     });
 
     // Ordering matters: reporting "no data rows" for a file whose columns are
@@ -101,7 +105,7 @@ describe('parsePortfolioCsv', () => {
         Buffer.from('store_name,city,state,country,category\n'),
         ErrorCode.RESOURCE_VALIDATION_FAILED,
       );
-      assert.match(err.message, /Missing required column/);
+      expect(err.message).to.match(/Missing required column/);
     });
 
     it('reports an empty body once the headers are valid', () => {
@@ -109,7 +113,7 @@ describe('parsePortfolioCsv', () => {
         Buffer.from(`${HEADER}\n`),
         ErrorCode.RESOURCE_VALIDATION_FAILED,
       );
-      assert.match(err.message, /no data rows/);
+      expect(err.message).to.match(/no data rows/);
     });
   });
 
@@ -120,7 +124,7 @@ describe('parsePortfolioCsv', () => {
         ErrorCode.RESOURCE_VALIDATION_FAILED,
       );
       const { errors } = err.details as { errors: { column: string }[] };
-      assert.equal(errors[0].column, 'store_name');
+      expect(errors[0].column).to.equal('store_name');
     });
 
     it('requires an address when coordinates are absent', () => {
@@ -129,7 +133,7 @@ describe('parsePortfolioCsv', () => {
         ErrorCode.RESOURCE_VALIDATION_FAILED,
       );
       const { errors } = err.details as { errors: { column: string }[] };
-      assert.equal(errors[0].column, 'address');
+      expect(errors[0].column).to.equal('address');
     });
 
     it('rejects a coordinate supplied without its pair', () => {
@@ -138,7 +142,7 @@ describe('parsePortfolioCsv', () => {
         ErrorCode.RESOURCE_VALIDATION_FAILED,
       );
       const { errors } = err.details as { errors: { message: string }[] };
-      assert.match(errors[0].message, /must be provided together/);
+      expect(errors[0].message).to.match(/must be provided together/);
     });
 
     it('collects every error rather than stopping at the first', () => {
@@ -151,7 +155,7 @@ describe('parsePortfolioCsv', () => {
         ErrorCode.RESOURCE_VALIDATION_FAILED,
       );
       const details = err.details as { error_count: number };
-      assert.equal(details.error_count, 3);
+      expect(details.error_count).to.equal(3);
     });
 
     it('rejects the entire file when a single row is bad', () => {
@@ -162,7 +166,7 @@ describe('parsePortfolioCsv', () => {
         ),
         ErrorCode.RESOURCE_VALIDATION_FAILED,
       );
-      assert.match(err.message, /No stores were imported/);
+      expect(err.message).to.match(/No stores were imported/);
     });
   });
 
@@ -187,10 +191,7 @@ describe('parsePortfolioCsv', () => {
       );
 
       const { errors } = err.details as { errors: { row: number }[] };
-      assert.deepEqual(
-        errors.map((e) => e.row),
-        [4, 7],
-      );
+      expect(errors.map((e) => e.row)).to.deep.equal([4, 7]);
     });
 
     it('points at the first data row for a single-row file', () => {
@@ -199,7 +200,7 @@ describe('parsePortfolioCsv', () => {
         ErrorCode.RESOURCE_VALIDATION_FAILED,
       );
       const { errors } = err.details as { errors: { row: number }[] };
-      assert.equal(errors[0].row, 2);
+      expect(errors[0].row).to.equal(2);
     });
   });
 
@@ -209,7 +210,7 @@ describe('parsePortfolioCsv', () => {
         Buffer.from(`${HEADER}\n"unterminated,1 St,B,K,India,X,1,2\n`),
         ErrorCode.MALFORMED_PAYLOAD,
       );
-      assert.equal(err.status, HttpStatus.BadRequest);
+      expect(err.status).to.equal(HttpStatus.BadRequest);
     });
   });
 });

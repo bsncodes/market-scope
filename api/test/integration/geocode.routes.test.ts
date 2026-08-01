@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+import { expect } from 'chai';
 import { ErrorCode } from '../../src/types/error';
 import { clearCityBbox, findSeedIds, readCityBbox } from '../helpers/db';
 import {
@@ -33,15 +33,15 @@ describe('GET /api/location/cities/:cityId/bbox', () => {
       );
 
       const res = await apiGet<any>(`/api/location/cities/${cityId}/bbox`);
-      assert.equal(res.status, 200);
+      expect(res.status).to.equal(200);
 
-      assert.deepEqual(res.body, {
+      expect(res.body).to.deep.equal({
         min_lat: 12.8,
         min_lng: 77.4,
         max_lat: 13.1,
         max_lng: 77.8,
       });
-      assert.equal(nominatimStub.requestCount, 1);
+      expect(nominatimStub.requestCount).to.equal(1);
     });
 
     // Nominatim returns [south, north, west, east]. Mapping that onto
@@ -52,9 +52,9 @@ describe('GET /api/location/cities/:cityId/bbox', () => {
       );
 
       const res = await apiGet<any>(`/api/location/cities/${cityId}/bbox`);
-      assert.equal(res.status, 200);
+      expect(res.status).to.equal(200);
 
-      assert.deepEqual(res.body, {
+      expect(res.body).to.deep.equal({
         min_lat: 1,
         max_lat: 2,
         min_lng: 3,
@@ -63,23 +63,23 @@ describe('GET /api/location/cities/:cityId/bbox', () => {
     });
 
     it('queries using city, state and country', async () => {
-      assert.equal(
+      expect(
         (await apiGet(`/api/location/cities/${cityId}/bbox`)).status,
-        200,
-      );
-      assert.ok(nominatimStub.lastQuery);
-      assert.match(nominatimStub.lastQuery, /India$/);
+      ).to.equal(200);
+      expect(nominatimStub.lastQuery).to.be.a('string');
+      expect(nominatimStub.lastQuery).to.match(/India$/);
     });
 
     it('writes all four columns back onto the city row', async () => {
-      assert.equal(
+      expect(
         (await apiGet(`/api/location/cities/${cityId}/bbox`)).status,
-        200,
-      );
+      ).to.equal(200);
 
       const stored = await readCityBbox(cityId);
       for (const column of ['min_lat', 'min_lng', 'max_lat', 'max_lng']) {
-        assert.notEqual(stored[column], null, `${column} should be populated`);
+        expect(stored[column], `${column} should be populated`).to.not.equal(
+          null,
+        );
       }
     });
   });
@@ -88,34 +88,32 @@ describe('GET /api/location/cities/:cityId/bbox', () => {
     // The cache is the whole point of the endpoint: a repeat request must not
     // reach the upstream at all.
     it('makes no second upstream request', async () => {
-      assert.equal(
+      expect(
         (await apiGet(`/api/location/cities/${cityId}/bbox`)).status,
-        200,
-      );
-      assert.equal(nominatimStub.requestCount, 1);
+      ).to.equal(200);
+      expect(nominatimStub.requestCount).to.equal(1);
 
       const second = await apiGet<any>(`/api/location/cities/${cityId}/bbox`);
-      assert.equal(second.status, 200);
+      expect(second.status).to.equal(200);
       const third = await apiGet<any>(`/api/location/cities/${cityId}/bbox`);
-      assert.equal(third.status, 200);
+      expect(third.status).to.equal(200);
 
-      assert.equal(
+      expect(
         nominatimStub.requestCount,
-        1,
         'cached reads must not call the geocoder',
-      );
-      assert.deepEqual(second.body, third.body);
+      ).to.equal(1);
+      expect(second.body).to.deep.equal(third.body);
     });
 
     it('serves the cached value even when the upstream is failing', async () => {
       const first = await apiGet<any>(`/api/location/cities/${cityId}/bbox`);
-      assert.equal(first.status, 200);
+      expect(first.status).to.equal(200);
 
       nominatimStub.respondWith(respondWithServerError);
 
       const cached = await apiGet<any>(`/api/location/cities/${cityId}/bbox`);
-      assert.equal(cached.status, 200);
-      assert.deepEqual(cached.body, first.body);
+      expect(cached.status).to.equal(200);
+      expect(cached.body).to.deep.equal(first.body);
     });
   });
 
@@ -123,40 +121,41 @@ describe('GET /api/location/cities/:cityId/bbox', () => {
     it('distinguishes "no result" from "service failed"', async () => {
       nominatimStub.respondWith(respondWithNoResults);
       const noResult = await apiGet<any>(`/api/location/cities/${cityId}/bbox`);
-      assert.equal(noResult.status, 404);
-      assert.equal(noResult.body.error.code, ErrorCode.UPSTREAM_NO_RESULT);
+      expect(noResult.status).to.equal(404);
+      expect(noResult.body.error.code).to.equal(ErrorCode.UPSTREAM_NO_RESULT);
 
       nominatimStub.respondWith(respondWithServerError);
       const failed = await apiGet<any>(`/api/location/cities/${cityId}/bbox`);
-      assert.equal(failed.status, 502);
-      assert.equal(failed.body.error.code, ErrorCode.UPSTREAM_SERVICE_FAILED);
+      expect(failed.status).to.equal(502);
+      expect(failed.body.error.code).to.equal(
+        ErrorCode.UPSTREAM_SERVICE_FAILED,
+      );
     });
 
     it('rejects a bounding box that is not numeric', async () => {
       nominatimStub.respondWith(respondWithMalformedBox);
       const res = await apiGet<any>(`/api/location/cities/${cityId}/bbox`);
-      assert.equal(res.status, 502);
-      assert.equal(res.body.error.code, ErrorCode.UPSTREAM_SERVICE_FAILED);
+      expect(res.status).to.equal(502);
+      expect(res.body.error.code).to.equal(ErrorCode.UPSTREAM_SERVICE_FAILED);
     });
 
     it('does not cache a failed lookup', async () => {
       nominatimStub.respondWith(respondWithServerError);
-      assert.equal(
+      expect(
         (await apiGet(`/api/location/cities/${cityId}/bbox`)).status,
-        502,
-      );
+      ).to.equal(502);
 
       const stored = await readCityBbox(cityId);
-      assert.equal(stored.min_lat, null);
+      expect(stored.min_lat).to.equal(null);
     });
   });
 
   describe('unknown city', () => {
     it('404s without calling the geocoder', async () => {
       const res = await apiGet<any>('/api/location/cities/99999999/bbox');
-      assert.equal(res.status, 404);
-      assert.equal(res.body.error.code, ErrorCode.RESOURCE_NOT_FOUND);
-      assert.equal(nominatimStub.requestCount, 0);
+      expect(res.status).to.equal(404);
+      expect(res.body.error.code).to.equal(ErrorCode.RESOURCE_NOT_FOUND);
+      expect(nominatimStub.requestCount).to.equal(0);
     });
   });
 });
