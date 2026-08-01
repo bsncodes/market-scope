@@ -65,11 +65,15 @@ export const config = {
   // Token bucket per service: sustained rate plus how many calls may burst
   // before throttling begins.
   //
-  // Nominatim's usage policy is an absolute one request per second, so its
-  // burst stays at 1 — any burst at all would breach the policy. Overpass
-  // publishes no fixed rate and throttles by slot availability instead, so a
-  // small burst is allowed to get a market started faster.
-  nominatimRatePerSecond: numeric('NOMINATIM_RATE_PER_SECOND', 1),
+  // Nominatim's usage policy is an ABSOLUTE maximum of one request per second,
+  // so its burst stays at 1 — any burst at all would breach it.
+  //
+  // The rate sits just under 1/sec rather than exactly on it. Running at the
+  // ceiling leaves no room for timing jitter: a slow event loop tick or a GC
+  // pause landing badly can place two requests inside the same wall-clock
+  // second. 0.9/sec spaces them ~1.11s apart, which is the same margin the
+  // earlier fixed 1100ms interval had.
+  nominatimRatePerSecond: numeric('NOMINATIM_RATE_PER_SECOND', 0.9),
   nominatimBurst: numeric('NOMINATIM_BURST', 1),
   overpassRatePerSecond: numeric('OVERPASS_RATE_PER_SECOND', 1),
   overpassBurst: numeric('OVERPASS_BURST', 3),
