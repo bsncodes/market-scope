@@ -53,6 +53,11 @@ export interface PortfolioStoreRow {
   lng: number | null;
 }
 
+export interface PortfolioSummary {
+  total: number;
+  located: number;
+}
+
 export interface PortfolioListResponse {
   count: number;
   limit: number;

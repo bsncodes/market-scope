@@ -66,7 +66,7 @@ export function StatusPage() {
       subtitle={
         failed
           ? 'Nothing was imported for this market.'
-          : 'Fetching OpenStreetMap tiles and locating your portfolio. This page checks every 10 seconds.'
+          : 'Fetching OpenStreetMap tiles and locating your portfolio. This page refreshes every 10 seconds.'
       }
     >
       {error && <ErrorBox error={error} />}

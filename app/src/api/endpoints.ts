@@ -12,12 +12,16 @@ import type {
   MarketStatusResponse,
   PortfolioListResponse,
   PortfolioResponse,
+  PortfolioSummary,
   State,
   UploadResult,
 } from '../types/api';
 
 export const uploadPortfolio = (file: File) =>
   postFile<UploadResult>('/portfolio/upload', file);
+
+export const getPortfolioSummary = () =>
+  get<PortfolioSummary>('/portfolio/summary');
 
 export const listPortfolio = () => get<PortfolioListResponse>('/portfolio');
 

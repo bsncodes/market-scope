@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { listMarkets } from '../api/endpoints';
+import { getPortfolioSummary, listMarkets } from '../api/endpoints';
 import { ErrorBox } from '../components/ErrorBox';
 import { Layout } from '../components/Layout';
 import { useRequest } from '../hooks/useRequest';
@@ -17,6 +17,13 @@ const destinationFor = (id: number, status: MarketStatus) =>
 
 export function MarketsPage() {
   const markets = useRequest(listMarkets, []);
+  const portfolio = useRequest(getPortfolioSummary, []);
+
+  // Uploading is a one-off, not a toll on every market. With a portfolio
+  // already loaded, Create market goes straight to defining the boundary;
+  // replacing it is a deliberate act, reached from the Portfolio view.
+  const hasPortfolio = (portfolio.data?.total ?? 0) > 0;
+  const createDestination = hasPortfolio ? '/setup' : '/upload';
 
   return (
     <Layout
@@ -25,9 +32,21 @@ export function MarketsPage() {
       subtitle="Every market you have created, newest first. Reopen a completed one to see its map again."
     >
       <div className="actions" style={{ marginTop: 0, marginBottom: 18 }}>
-        <Link className="button button--primary" to="/upload">
+        <Link className="button button--primary" to={createDestination}>
           Create market
         </Link>
+        {hasPortfolio ? (
+          <span className="footnote">
+            Using the {portfolio.data?.total} stores already uploaded ·{' '}
+            <Link to="/upload">replace them</Link>
+          </span>
+        ) : (
+          !portfolio.loading && (
+            <span className="footnote">
+              You will be asked for a store portfolio first.
+            </span>
+          )
+        )}
       </div>
 
       {markets.error && <ErrorBox error={markets.error} />}
@@ -37,8 +56,10 @@ export function MarketsPage() {
       {markets.data && markets.data.markets.length === 0 && (
         <div className="card">
           <p>
-            No markets yet. Upload a store portfolio, then draw a boundary to
-            discover what is around it.
+            No markets yet.{' '}
+            {hasPortfolio
+              ? 'Draw a boundary to discover what is around your stores.'
+              : 'Upload a store portfolio, then draw a boundary to discover what is around it.'}
           </p>
         </div>
       )}
