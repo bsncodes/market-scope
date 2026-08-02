@@ -27,6 +27,11 @@ process.env.NOMINATIM_BURST = '100000';
 process.env.OVERPASS_RATE_PER_SECOND = '100000';
 process.env.OVERPASS_BURST = '100000';
 
+// Retry behaviour is asserted, but the waiting between attempts is not — at
+// the production delay a whole-market failure would exceed the test timeout.
+process.env.OVERPASS_TILE_RETRY_DELAY_MS = '1';
+process.env.PROGRESS_WRITE_INTERVAL_MS = '0';
+
 // Integration tests mutate portfolio_store, markets and city bboxes. Set
 // TEST_DATABASE_URL to run them against a throwaway database instead.
 if (process.env.TEST_DATABASE_URL) {

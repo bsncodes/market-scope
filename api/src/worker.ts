@@ -16,15 +16,29 @@ export function createDiscoveryWorker() {
     { connection: createRedisConnection(), concurrency: 1 },
   );
 
-  worker.on('failed', (job, err) => {
+  // This handler is the only place that writes a terminal status on the throw
+  // path: runDiscovery deliberately leaves it alone, because only the job
+  // knows whether attempts remain.
+  worker.on('failed', async (job, err) => {
     console.error(`discovery job ${job?.id} failed: ${err.message}`);
+    if (!job) return;
 
-    // Only the final attempt is terminal. Marking the market failed earlier
-    // would contradict a retry that is about to succeed.
-    const attemptsExhausted =
-      job && job.attemptsMade >= (job.opts.attempts ?? 1);
-    if (attemptsExhausted && job) {
-      void setMarketStatus(job.data.marketId, 'failed', err.message);
+    const attemptsExhausted = job.attemptsMade >= (job.opts.attempts ?? 1);
+    if (!attemptsExhausted) return;
+
+    // Awaited rather than fire-and-forget: this is the last durable record of
+    // what happened, and a shutdown right after could otherwise drop it,
+    // leaving the market stuck in `processing` forever.
+    try {
+      await setMarketStatus(
+        job.data.marketId,
+        'failed',
+        'Discovery could not be completed. Please try creating the market again.',
+      );
+    } catch (statusErr) {
+      console.error(
+        `could not mark market ${job.data.marketId} failed: ${(statusErr as Error).message}`,
+      );
     }
   });
 

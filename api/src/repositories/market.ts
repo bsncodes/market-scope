@@ -104,9 +104,10 @@ export async function setMarketProgress(
   marketId: number,
   progress: DiscoveryProgress,
 ): Promise<void> {
+  // node-pg serialises a plain object into jsonb, so no manual stringify.
   await pool.query('UPDATE market SET progress = $2 WHERE id = $1', [
     marketId,
-    JSON.stringify(progress),
+    progress,
   ]);
 }
 

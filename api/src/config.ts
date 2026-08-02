@@ -79,6 +79,15 @@ export const config = {
   overpassBurst: numeric('OVERPASS_BURST', 3),
   overpassTimeoutSeconds: numeric('OVERPASS_TIMEOUT_SECONDS', 25),
 
+  // Tile failures are isolated per tile and never reach BullMQ, so a retryable
+  // response has to be retried here or not at all.
+  overpassTileAttempts: numeric('OVERPASS_TILE_ATTEMPTS', 3),
+  overpassTileRetryDelayMs: numeric('OVERPASS_TILE_RETRY_DELAY_MS', 1000),
+
+  // The poll loop reads every ~10s, so writing progress more often than this
+  // costs updates without telling anyone anything sooner.
+  progressWriteIntervalMs: numeric('PROGRESS_WRITE_INTERVAL_MS', 2000),
+
   discoveryJobAttempts: numeric('DISCOVERY_JOB_ATTEMPTS', 3),
   discoveryJobBackoffMs: numeric('DISCOVERY_JOB_BACKOFF_MS', 5000),
 } as const;

@@ -55,7 +55,7 @@ describe('discovery pipeline', () => {
         outcome.progress.tilesTotal,
       );
       expect(overpassStub.requestCount).to.equal(outcome.progress.tilesTotal);
-      expect(outcome.discoveredInBoundary).to.equal(2);
+      expect(outcome.progress.discoveredInBoundary).to.equal(2);
     });
 
     it('sends the tile bbox and the category tag in the query', async () => {
@@ -141,7 +141,7 @@ describe('discovery pipeline', () => {
       const outcome = await runDiscovery(marketId);
 
       expect(await countStoresInsideBoundary(marketId)).to.equal(1);
-      expect(outcome.discoveredInBoundary).to.equal(1);
+      expect(outcome.progress.discoveredInBoundary).to.equal(1);
     });
 
     it('counts a store found in two tiles only once', async () => {
@@ -159,7 +159,7 @@ describe('discovery pipeline', () => {
 
       const marketId = await newMarket();
       const outcome = await runDiscovery(marketId);
-      expect(outcome.discoveredInBoundary).to.equal(1);
+      expect(outcome.progress.discoveredInBoundary).to.equal(1);
     });
   });
 
@@ -204,13 +204,69 @@ describe('discovery pipeline', () => {
     });
   });
 
+  // A tile failure is isolated by design and never reaches BullMQ, so if it is
+  // not retried here it is not retried at all.
+  describe('tile-level retry', () => {
+    it('retries a retryable failure and recovers', async () => {
+      let call = 0;
+      overpassStub.respondWith((req, res, body) => {
+        call += 1;
+        // Fail the very first attempt only; the retry should succeed.
+        if (call === 1) return respondWithServerError(req, res, body);
+        return respondWithStoresInBbox([])(req, res, body);
+      });
+
+      const marketId = await newMarket();
+      const outcome = await runDiscovery(marketId);
+
+      expect(outcome.progress.tilesFailed).to.equal(0);
+      expect(outcome.progress.tilesFetched).to.equal(
+        outcome.progress.tilesTotal,
+      );
+      // One extra call beyond the tile count: the retried attempt.
+      expect(overpassStub.requestCount).to.equal(
+        outcome.progress.tilesTotal + 1,
+      );
+
+      const status = await findMarketStatus(marketId);
+      expect(status.status).to.equal('completed');
+      expect(status.error).to.equal(null);
+    });
+
+    // A 400 means the query itself is wrong; repeating it only burns the
+    // fair-use budget.
+    it('does not retry a permanent failure', async () => {
+      overpassStub.respondWith(respondWithBadRequest);
+
+      const marketId = await newMarket();
+      const outcome = await runDiscovery(marketId);
+
+      expect(overpassStub.requestCount).to.equal(outcome.progress.tilesTotal);
+    });
+
+    it('gives up after the configured attempts on a persistent retryable failure', async () => {
+      overpassStub.respondWith(respondWithServerError);
+
+      const marketId = await newMarket();
+      const outcome = await runDiscovery(marketId);
+
+      expect(outcome.progress.tilesFailed).to.equal(
+        outcome.progress.tilesTotal,
+      );
+      expect(overpassStub.requestCount).to.equal(
+        outcome.progress.tilesTotal * 3,
+      );
+    });
+  });
+
   describe('failure handling', () => {
     // Partial failure must not lose the tiles that did succeed.
     it('completes with an error recorded when some tiles fail', async () => {
       let call = 0;
       overpassStub.respondWith((req, res, body) => {
         call += 1;
-        if (call === 1) return respondWithServerError(req, res, body);
+        // Permanent so it is not retried away, and only the first tile.
+        if (call === 1) return respondWithBadRequest(req, res, body);
         return respondWithStoresInBbox([{ id: 5, lat: 12.97, lon: 77.6 }])(
           req,
           res,
@@ -226,14 +282,14 @@ describe('discovery pipeline', () => {
 
       const status = await findMarketStatus(marketId);
       expect(status.status).to.equal('completed');
-      expect(status.error).to.match(/tile fetch\(es\) failed/);
+      expect(status.error).to.match(/could not be fetched/);
     });
 
     // Total failure is reported as failed, not completed: with nothing fetched
     // and nothing reusable, an empty map would otherwise be indistinguishable
     // from a genuinely empty area.
     it('fails the market when every tile fails and nothing is cached', async () => {
-      overpassStub.respondWith(respondWithServerError);
+      overpassStub.respondWith(respondWithBadRequest);
 
       const marketId = await newMarket();
       const outcome = await runDiscovery(marketId);
@@ -251,12 +307,38 @@ describe('discovery pipeline', () => {
     // A market stuck in `processing` would make the frontend poll forever, so
     // every path must land on a terminal status.
     it('never leaves the market in processing', async () => {
-      overpassStub.respondWith(respondWithServerError);
+      overpassStub.respondWith(respondWithBadRequest);
       const marketId = await newMarket();
       await runDiscovery(marketId);
 
       const status = await findMarketStatus(marketId);
       expect(['completed', 'failed']).to.include(status.status);
+    });
+
+    // Terminal state on the throw path belongs to the worker, which is the
+    // only place that knows whether attempts remain. Writing `failed` here
+    // would tell a polling client the market is done while a retry that may
+    // well succeed is still pending.
+    it('leaves terminal status to the worker when the run throws', async () => {
+      // createMarket bypasses the route's area cap, so this boundary explodes
+      // past the tile guard and makes discoverTiles throw.
+      const marketId = await createMarket({
+        cityId,
+        categoryIds: [categoryId],
+        boundary: { minLat: -80, minLng: -170, maxLat: 80, maxLng: 170 },
+      });
+
+      let threw = false;
+      try {
+        await runDiscovery(marketId);
+      } catch {
+        threw = true;
+      }
+
+      expect(threw).to.equal(true);
+      const status = await findMarketStatus(marketId);
+      expect(status.status).to.equal('processing');
+      expect(status.status).to.not.equal('failed');
     });
 
     it('does not cache a tile whose fetch failed', async () => {
@@ -268,6 +350,30 @@ describe('discovery pipeline', () => {
       const outcome = await runDiscovery(await newMarket());
 
       expect(outcome.progress.tilesReused).to.equal(0);
+    });
+  });
+
+  // A geocoder outage must not look like a portfolio with nothing nearby.
+  describe('geocoding visibility', () => {
+    it('counts an unresolvable address separately from a service failure', async () => {
+      overpassStub.respondWith(respondWithStoresInBbox([]));
+      await insertPortfolioStore({
+        name: 'Unresolvable',
+        address: 'nowhere at all',
+        city: 'Nowhere',
+      });
+
+      const marketId = await newMarket();
+      const outcome = await runDiscovery(marketId);
+
+      expect(outcome.progress.geocodeCandidates).to.be.greaterThan(0);
+      expect(outcome.progress.geocodeUnresolved).to.be.greaterThan(0);
+      expect(outcome.progress.geocodeFailed).to.equal(0);
+
+      // An address the geocoder simply could not place is normal, so it is not
+      // reported to the user as a fault.
+      const status = await findMarketStatus(marketId);
+      expect(status.error).to.equal(null);
     });
   });
 

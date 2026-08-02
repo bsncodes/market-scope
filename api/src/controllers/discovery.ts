@@ -19,83 +19,91 @@ import {
   setMarketProgress,
   setMarketStatus,
 } from '../repositories/market';
-import type { DiscoveryProgress, TileFailure } from '../types/discovery';
+import {
+  emptyProgress,
+  type Bbox,
+  type DiscoveryProgress,
+  type TileFailure,
+} from '../types/discovery';
 import { fetchStoresInBbox } from './overpass';
 import { geocodeAddress } from './geocode';
 
 export interface DiscoveryOutcome {
   progress: DiscoveryProgress;
   failures: TileFailure[];
-  geocoded: number;
   inside: number;
   outside: number;
-  discoveredInBoundary: number;
 }
 
 /**
  * The whole pipeline for one market: geocode what the boundary might contain,
  * fetch whichever tiles are missing or stale, then classify.
  *
- * Reaching a terminal status is the contract. A market left in `processing`
- * would make the frontend poll forever, so every exit path here writes either
- * `completed` or `failed`.
+ * On a completed run this writes the terminal status itself. On a throw it
+ * deliberately does not: only the worker knows whether attempts remain, and
+ * writing `failed` here would contradict a retry that is about to succeed.
  */
 export async function runDiscovery(
   marketId: number,
 ): Promise<DiscoveryOutcome> {
   await setMarketStatus(marketId, 'processing');
 
-  try {
-    const geocoded = await geocodePortfolioCandidates(marketId);
-    const { progress, failures, discoveredInBoundary } =
-      await discoverTiles(marketId);
-    const { inside, outside } = await classifyPortfolioForMarket(marketId);
+  const progress = emptyProgress();
 
-    const error =
-      failures.length > 0
-        ? `${failures.length} tile fetch(es) failed: ${summarize(failures)}`
-        : null;
+  const geocodeSummary = await geocodePortfolioCandidates(marketId, progress);
+  const failures = await discoverTiles(marketId, progress);
+  const { inside, outside } = await classifyPortfolioForMarket(marketId);
 
-    // Partial failure still completes: whatever succeeded is persisted, with
-    // the shortfall recorded so the dashboard can say which areas are missing
-    // rather than showing nothing (§3.4).
-    //
-    // Total failure does not. With no tile fetched and none reusable from
-    // cache, the market holds no discovered data at all, and reporting that as
-    // "completed" would render an empty map indistinguishable from a genuinely
-    // empty area.
-    const producedNothing =
-      progress.tilesFailed > 0 &&
-      progress.tilesFetched === 0 &&
-      progress.tilesReused === 0;
+  progress.discoveredInBoundary = await countDiscoveredInMarket(
+    marketId,
+    tileKeysForMarketBounds(await marketBoundaryBbox(marketId)),
+  );
+  await setMarketProgress(marketId, progress);
 
-    if (producedNothing) {
-      await setMarketStatus(marketId, 'failed', error);
-    } else {
-      await setMarketCompleted(marketId, error);
-    }
+  const error = describeShortfall(failures, geocodeSummary);
 
-    return {
-      progress,
-      failures,
-      geocoded,
-      inside,
-      outside,
-      discoveredInBoundary,
-    };
-  } catch (err) {
-    await setMarketStatus(marketId, 'failed', (err as Error).message);
-    throw err;
+  // Partial failure still completes: whatever succeeded is persisted, with the
+  // shortfall recorded so the dashboard can say which areas are missing rather
+  // than showing nothing (§3.4).
+  //
+  // Total failure does not. With no tile fetched and none reusable from cache,
+  // the market holds no discovered data at all, and reporting that as
+  // "completed" would render an empty map indistinguishable from a genuinely
+  // empty area.
+  const producedNothing =
+    progress.tilesFailed > 0 &&
+    progress.tilesFetched === 0 &&
+    progress.tilesReused === 0;
+
+  if (producedNothing) {
+    await setMarketStatus(marketId, 'failed', error);
+  } else {
+    await setMarketCompleted(marketId, error);
   }
+
+  return { progress, failures, inside, outside };
 }
 
-async function geocodePortfolioCandidates(marketId: number): Promise<number> {
+interface GeocodeSummary {
+  candidates: number;
+  resolved: number;
+  unresolved: number;
+  failed: number;
+}
+
+async function geocodePortfolioCandidates(
+  marketId: number,
+  progress: DiscoveryProgress,
+): Promise<GeocodeSummary> {
   const candidates = await findGeocodingCandidates(marketId);
-  let geocoded = 0;
+  const summary: GeocodeSummary = {
+    candidates: candidates.length,
+    resolved: 0,
+    unresolved: 0,
+    failed: 0,
+  };
 
   for (const candidate of candidates) {
-    // One unresolvable address must not abort the market: it simply stays
-    // unlocated and is excluded from classification.
     try {
       const point = await geocodeAddress([
         candidate.address,
@@ -103,32 +111,91 @@ async function geocodePortfolioCandidates(marketId: number): Promise<number> {
         candidate.state,
         candidate.country,
       ]);
-      if (!point) continue;
+
+      // A null result means the address is genuinely unresolvable, which is a
+      // normal outcome for user-supplied data. A throw means the call itself
+      // failed, which points at the service rather than the row — counted
+      // separately so an outage is not mistaken for a portfolio that simply
+      // does not reach this market.
+      if (!point) {
+        summary.unresolved += 1;
+        continue;
+      }
 
       await setPortfolioLocation(candidate.id, point.lat, point.lng);
-      geocoded += 1;
-    } catch {
-      continue;
+      summary.resolved += 1;
+    } catch (err) {
+      summary.failed += 1;
+      console.warn(
+        `geocoding failed for portfolio_store ${candidate.id}: ${(err as Error).message}`,
+      );
     }
   }
 
-  return geocoded;
+  progress.geocodeCandidates = summary.candidates;
+  progress.geocodeResolved = summary.resolved;
+  progress.geocodeUnresolved = summary.unresolved;
+  progress.geocodeFailed = summary.failed;
+  return summary;
 }
 
-async function discoverTiles(marketId: number) {
+/**
+ * What the client is told went wrong. Only text this code produced — an
+ * upstream message could carry connection detail or SQL fragments.
+ */
+function describeShortfall(
+  failures: TileFailure[],
+  geocoding: GeocodeSummary,
+): string | null {
+  const parts: string[] = [];
+
+  if (failures.length > 0) {
+    const tiles = new Set(failures.map((f) => f.tileKey)).size;
+    parts.push(
+      `${tiles} area${tiles > 1 ? 's' : ''} could not be fetched, so some stores may be missing.`,
+    );
+  }
+
+  // Every candidate erroring points at the geocoder, not the addresses.
+  if (geocoding.failed > 0 && geocoding.resolved === 0) {
+    parts.push(
+      'The geocoding service was unavailable, so stores without coordinates could not be placed.',
+    );
+  } else if (geocoding.failed > 0) {
+    parts.push(
+      `${geocoding.failed} store${geocoding.failed > 1 ? 's' : ''} could not be geocoded.`,
+    );
+  }
+
+  return parts.length > 0 ? parts.join(' ') : null;
+}
+
+export function tileKeysForMarketBounds(bounds: Bbox): string[] {
+  return tileKeysForBbox(bounds, tileStepDegrees(config.tileSizeKm));
+}
+
+async function discoverTiles(
+  marketId: number,
+  progress: DiscoveryProgress,
+): Promise<TileFailure[]> {
   const step = tileStepDegrees(config.tileSizeKm);
   const bounds = await marketBoundaryBbox(marketId);
   const tileKeys = tileKeysForBbox(bounds, step);
   const categories = await marketCategoryTags(marketId);
 
-  const progress: DiscoveryProgress = {
-    tilesTotal: tileKeys.length * categories.length,
-    tilesFetched: 0,
-    tilesReused: 0,
-    tilesFailed: 0,
-  };
+  progress.tilesTotal = tileKeys.length * categories.length;
   const failures: TileFailure[] = [];
   await setMarketProgress(marketId, progress);
+
+  // Progress is written on a timer rather than per tile. A market can cover
+  // hundreds of tile-category pairs, and the poll loop reads every ~10s, so a
+  // write per tile is chatty without telling anyone anything sooner.
+  let lastWriteAt = Date.now();
+  const flushIfDue = async () => {
+    if (Date.now() - lastWriteAt < config.progressWriteIntervalMs) return;
+    lastWriteAt = Date.now();
+    await setMarketProgress(marketId, progress);
+  };
 
   for (const category of categories) {
     // Freshness is checked per category in one query rather than per tile:
@@ -162,20 +229,14 @@ async function discoverTiles(marketId: number) {
         });
       }
 
-      await setMarketProgress(marketId, progress);
+      await flushIfDue();
     }
+
+    // Always land a write on a category boundary, so a long single-category
+    // market still reports something.
+    await setMarketProgress(marketId, progress);
+    lastWriteAt = Date.now();
   }
 
-  await setMarketProgress(marketId, progress);
-  const discoveredInBoundary = await countDiscoveredInMarket(
-    marketId,
-    tileKeys,
-  );
-
-  return { progress, failures, discoveredInBoundary };
-}
-
-function summarize(failures: TileFailure[]): string {
-  const reasons = [...new Set(failures.map((f) => f.reason))];
-  return reasons.slice(0, 3).join('; ');
+  return failures;
 }

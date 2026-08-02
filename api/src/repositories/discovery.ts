@@ -149,7 +149,12 @@ export async function findGeocodingCandidates(
      WHERE ps.location IS NULL
        AND ps.address IS NOT NULL
        AND (
-         ps.city ILIKE '%' || t.city || '%' OR t.city ILIKE '%' || ps.city || '%'
+         -- No region text at all is not evidence of being elsewhere, so the
+         -- row stays a candidate. Excluding it would silently drop a store
+         -- that ST_Contains might well place inside the boundary (§3.2).
+         (ps.city IS NULL AND ps.state IS NULL AND ps.country IS NULL)
+         OR ps.city ILIKE '%' || t.city || '%'
+         OR t.city ILIKE '%' || ps.city || '%'
          OR ps.state ILIKE '%' || t.state || '%'
          OR ps.country ILIKE '%' || t.country || '%'
        )`,
