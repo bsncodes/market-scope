@@ -75,6 +75,19 @@ jobs:
       - uses: ./.github/actions/setup
       - run: npm run test:unit --workspace api
 
+  # jsdom only: components, hooks and the geometry that decides whether a
+  # boundary is submittable. No browser, so this is as fast as the api unit
+  # job and a failure means a logic regression, not a flaky environment.
+  test-app:
+    name: Test unit (app)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: npm run test --workspace app
+
   # Runs against real PostGIS: the geography columns, ST_MakePoint ordering and
   # CHECK constraints are exactly what these assert, so a stub or sqlite would
   # verify nothing that matters. Redis is needed because creating a market

@@ -24,6 +24,8 @@ export class OverpassError extends Error {
   constructor(
     message: string,
     readonly retryable: boolean,
+    /** Honoured verbatim when the server named a wait, from `Retry-After`. */
+    readonly retryAfterMs?: number,
   ) {
     super(message);
     this.name = 'OverpassError';
@@ -61,10 +63,7 @@ export async function fetchStoresInBbox(
           : new OverpassError(String(err), false);
 
       if (!failure.retryable || attempt === attempts) throw failure;
-
-      // The limiter already paces requests; this backs off further so a
-      // struggling server is not asked again immediately.
-      await sleep(config.overpassTileRetryDelayMs * attempt);
+      await sleep(backoffMs(failure, attempt));
     }
   }
 
@@ -74,11 +73,34 @@ export async function fetchStoresInBbox(
   throw new OverpassError('Overpass retries exhausted', false);
 }
 
+/**
+ * The server's own `Retry-After` wins when it sent one: retrying a 429 after a
+ * locally-chosen delay is how one rate-limit response becomes a run of them.
+ *
+ * Otherwise the wait doubles per attempt, with jitter. A fixed delay makes
+ * every tile that failed in the same bad window retry in the same instant,
+ * recreating the burst that caused the failure — jitter spreads them out.
+ */
+function backoffMs(failure: OverpassError, attempt: number): number {
+  if (failure.retryAfterMs !== undefined) {
+    return Math.min(failure.retryAfterMs, config.overpassMaxBackoffMs);
+  }
+
+  const exponential = config.overpassTileRetryDelayMs * 2 ** (attempt - 1);
+  const capped = Math.min(exponential, config.overpassMaxBackoffMs);
+  return capped * (0.5 + Math.random() * 0.5);
+}
+
 async function fetchOnce(
   bbox: Bbox,
   tags: OsmTag[],
 ): Promise<DiscoveredStore[]> {
-  const query = buildOverpassQuery(bbox, tags, config.overpassTimeoutSeconds);
+  const query = buildOverpassQuery(
+    bbox,
+    tags,
+    config.overpassTimeoutSeconds,
+    config.overpassElementTypes,
+  );
 
   const response = await limiter.schedule(async () => {
     try {
@@ -119,5 +141,6 @@ function toOverpassError(err: unknown): OverpassError {
   return new OverpassError(
     `Overpass responded ${err.status}${retryable ? ' (retryable)' : ''}`,
     retryable,
+    err.retryAfterMs,
   );
 }

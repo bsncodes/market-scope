@@ -1,6 +1,12 @@
 import { pool } from '../../src/db';
 import type { Bbox } from '../../src/types/discovery';
 
+// Categories this run invented, so they can be removed again. Deleting every
+// category instead would take the seeded reference data with it, and leaving
+// them behind pollutes a shared dev database — they show up in the app's real
+// category picker.
+const seededCategoryIds = new Set<number>();
+
 export async function clearDiscoveryState(): Promise<void> {
   // Order matters: portfolio_store_market and market_category reference market.
   await pool.query('DELETE FROM portfolio_store_market');
@@ -10,6 +16,24 @@ export async function clearDiscoveryState(): Promise<void> {
   await pool.query('DELETE FROM tile_fetch');
   await pool.query('DELETE FROM portfolio_store');
   await pool.query('DELETE FROM geocode_cache');
+}
+
+/**
+ * Only safe once a suite is finished: the categories are created in `before`
+ * and `clearDiscoveryState` runs between every test, so folding this into it
+ * would delete the category the running spec still holds an id for.
+ */
+export async function clearDiscoveryFixtures(): Promise<void> {
+  await clearDiscoveryState();
+
+  if (seededCategoryIds.size > 0) {
+    // market_category and tile_fetch both reference category with RESTRICT, so
+    // this has to come after clearDiscoveryState has emptied them.
+    await pool.query('DELETE FROM category WHERE id = ANY($1::bigint[])', [
+      [...seededCategoryIds],
+    ]);
+    seededCategoryIds.clear();
+  }
 }
 
 export async function seedCategory(
@@ -22,6 +46,7 @@ export async function seedCategory(
      RETURNING id`,
     [label, tags],
   );
+  seededCategoryIds.add(rows[0].id);
   return rows[0].id;
 }
 

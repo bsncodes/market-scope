@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { requestValidationFailed, unsupportedMediaType } from '../errors';
-import { countPortfolioStores } from '../repositories/portfolio';
+import {
+  countPortfolioStores,
+  listPortfolioStores,
+} from '../repositories/portfolio';
 import { replacePortfolioFromCsv } from '../controllers/portfolio';
 import { HttpStatus } from '../types/http';
 
@@ -48,3 +51,23 @@ portfolioRouter.post('/upload', upload.single('file'), async (req, res) => {
 portfolioRouter.get('/summary', async (_req, res) => {
   res.json(await countPortfolioStores());
 });
+
+const MAX_PORTFOLIO_PAGE = 1000;
+
+portfolioRouter.get('/', async (req, res) => {
+  const limit = parsePortfolioLimit(req.query.limit);
+  const stores = await listPortfolioStores(limit);
+  res.json({ count: stores.length, limit, stores });
+});
+
+function parsePortfolioLimit(raw: unknown): number {
+  if (raw === undefined) return 200;
+
+  const limit = Number(raw);
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PORTFOLIO_PAGE) {
+    throw requestValidationFailed(
+      `limit must be an integer between 1 and ${MAX_PORTFOLIO_PAGE}.`,
+    );
+  }
+  return limit;
+}

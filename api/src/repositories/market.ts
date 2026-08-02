@@ -1,6 +1,11 @@
 import { pool } from '../db';
 import type { Bbox, CategoryTags, DiscoveryProgress } from '../types/discovery';
-import type { CreateMarketInput, Market, MarketStatus } from '../types/market';
+import type {
+  CreateMarketInput,
+  Market,
+  MarketStatus,
+  MarketStatusRow,
+} from '../types/market';
 
 const bboxToPolygonWkt = (b: Bbox) =>
   `POLYGON((${b.minLng} ${b.minLat}, ${b.minLng} ${b.maxLat}, ${b.maxLng} ${b.maxLat}, ${b.maxLng} ${b.minLat}, ${b.minLng} ${b.minLat}))`;
@@ -56,8 +61,10 @@ export async function findMarket(marketId: number): Promise<Market | null> {
   return rows[0] ?? null;
 }
 
-export async function findMarketStatus(marketId: number) {
-  const { rows } = await pool.query(
+export async function findMarketStatus(
+  marketId: number,
+): Promise<MarketStatusRow | null> {
+  const { rows } = await pool.query<MarketStatusRow>(
     `SELECT id, status, error, last_discovered_at, progress
      FROM market WHERE id = $1`,
     [marketId],

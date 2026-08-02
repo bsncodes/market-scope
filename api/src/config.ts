@@ -45,6 +45,14 @@ function numeric(name: string, fallback: number): number {
 export const config = {
   port: numeric('PORT', 3000),
 
+  // The frontend runs on its own origin under Vite, so every browser request
+  // is cross-origin and fails preflight without this. Comma-separated so a
+  // deployed origin can be added without code changes.
+  corsOrigins: optional('CORS_ORIGINS', 'http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+
   databaseUrl: required('DATABASE_URL'),
   redisUrl: optional('REDIS_URL', 'redis://localhost:6379'),
 
@@ -58,7 +66,7 @@ export const config = {
   ),
 
   marketMaxAreaSqKm: numeric('MARKET_MAX_AREA_SQKM', 30),
-  tileSizeKm: numeric('TILE_SIZE_KM', 1),
+  tileSizeKm: numeric('TILE_SIZE_KM', 2),
   discoveryFreshnessDays: numeric('DISCOVERY_FRESHNESS_DAYS', 5),
   redisCacheTtlDays: numeric('REDIS_CACHE_TTL_DAYS', 1),
 
@@ -75,14 +83,28 @@ export const config = {
   // earlier fixed 1100ms interval had.
   nominatimRatePerSecond: numeric('NOMINATIM_RATE_PER_SECOND', 0.9),
   nominatimBurst: numeric('NOMINATIM_BURST', 1),
-  overpassRatePerSecond: numeric('OVERPASS_RATE_PER_SECOND', 1),
-  overpassBurst: numeric('OVERPASS_BURST', 3),
-  overpassTimeoutSeconds: numeric('OVERPASS_TIMEOUT_SECONDS', 25),
+  overpassRatePerSecond: numeric('OVERPASS_RATE_PER_SECOND', 0.25),
+  overpassBurst: numeric('OVERPASS_BURST', 1),
+  overpassTimeoutSeconds: numeric('OVERPASS_TIMEOUT_SECONDS', 60),
 
   // Tile failures are isolated per tile and never reach BullMQ, so a retryable
   // response has to be retried here or not at all.
   overpassTileAttempts: numeric('OVERPASS_TILE_ATTEMPTS', 3),
-  overpassTileRetryDelayMs: numeric('OVERPASS_TILE_RETRY_DELAY_MS', 1000),
+  overpassTileRetryDelayMs: numeric('OVERPASS_TILE_RETRY_DELAY_MS', 4000),
+
+  // Ceiling on any single backoff, including one the server asked for. A
+  // Retry-After of several minutes would otherwise stall a whole market
+  // behind one tile.
+  overpassMaxBackoffMs: numeric('OVERPASS_MAX_BACKOFF_MS', 30000),
+
+  // Which OSM element types each tile query asks for. `relation` is by far the
+  // most expensive clause to resolve with `out center`, so dropping it is the
+  // lever to reach for when a loaded server is returning 504s — at the cost of
+  // missing the rare shop mapped as a multipolygon.
+  overpassElementTypes: optional('OVERPASS_ELEMENT_TYPES', 'node,way,relation')
+    .split(',')
+    .map((type) => type.trim())
+    .filter(Boolean),
 
   // The poll loop reads every ~10s, so writing progress more often than this
   // costs updates without telling anyone anything sooner.

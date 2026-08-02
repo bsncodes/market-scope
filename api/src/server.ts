@@ -1,8 +1,10 @@
+import cors from 'cors';
 import express, {
   type ErrorRequestHandler,
   type RequestHandler,
 } from 'express';
 import { MulterError } from 'multer';
+import { config } from './config';
 import {
   AppError,
   internalError,
@@ -46,6 +48,10 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
 
 export function createServer() {
   const app = express();
+
+  // An allow-list rather than a wildcard: the API is not public, and `*`
+  // would also forbid credentialed requests if auth is ever added.
+  app.use(cors({ origin: config.corsOrigins }));
 
   app.use(express.json());
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
