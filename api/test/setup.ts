@@ -30,6 +30,10 @@ process.env.OVERPASS_BURST = '100000';
 // Retry behaviour is asserted, but the waiting between attempts is not — at
 // the production delay a whole-market failure would exceed the test timeout.
 process.env.OVERPASS_TILE_RETRY_DELAY_MS = '1';
+
+// The Retry-After specs assert against this ceiling, so it has to be short
+// enough to wait out in a test. Production keeps the 30s default.
+process.env.OVERPASS_MAX_BACKOFF_MS = '600';
 process.env.PROGRESS_WRITE_INTERVAL_MS = '0';
 
 // Integration tests mutate portfolio_store, markets and city bboxes. Set

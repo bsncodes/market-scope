@@ -39,6 +39,7 @@ export function buildOverpassQuery(
   bbox: Bbox,
   tags: OsmTag[],
   timeoutSeconds: number,
+  elementTypes: readonly string[] = ['node', 'way', 'relation'],
 ): string {
   if (tags.length === 0) {
     throw new Error('Cannot build an Overpass query with no tags.');
@@ -47,7 +48,7 @@ export function buildOverpassQuery(
   const box = `${bbox.minLat},${bbox.minLng},${bbox.maxLat},${bbox.maxLng}`;
   const clauses = tags
     .flatMap(({ key, value }) =>
-      ['node', 'way', 'relation'].map(
+      elementTypes.map(
         (element) => `  ${element}["${key}"="${value}"](${box});`,
       ),
     )

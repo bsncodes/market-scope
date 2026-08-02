@@ -1,9 +1,11 @@
 import { expect } from 'chai';
+import { config } from '../../src/config';
 import { fetchStoresInBbox } from '../../src/controllers/overpass';
 import type { Bbox } from '../../src/types/discovery';
 import {
   overpassStub,
   respondWithBadRequest,
+  respondWithRateLimit,
   respondWithServerError,
   respondWithStores,
 } from '../helpers/overpassStub';
@@ -80,5 +82,67 @@ describe('fetchStoresInBbox retry', () => {
 
     expect(threw).to.equal(true);
     expect(overpassStub.requestCount).to.equal(1);
+  });
+
+  // 429 is the server naming a rate limit, which is worth waiting out — unlike
+  // a 400, where the query itself is the problem.
+  it('retries a 429 rather than treating it as permanent', async () => {
+    let call = 0;
+    overpassStub.respondWith((req, res, body) => {
+      call += 1;
+      if (call === 1) return respondWithRateLimit(0)(req, res, body);
+      return respondWithStores([{ id: 3, lat: 12.965, lon: 77.595 }])(
+        req,
+        res,
+        body,
+      );
+    });
+
+    const stores = await fetchStoresInBbox(BBOX, TAGS);
+    expect(stores.length).to.equal(1);
+    expect(overpassStub.requestCount).to.equal(2);
+  });
+
+  // Retrying on a locally-chosen delay when the server named one is how a
+  // single 429 becomes a run of them, so the header has to win.
+  it('waits at least as long as Retry-After asks', async function () {
+    this.timeout(5000);
+    const retryAfterSeconds = 0.4;
+    let call = 0;
+    overpassStub.respondWith((req, res, body) => {
+      call += 1;
+      if (call === 1) {
+        return respondWithRateLimit(retryAfterSeconds)(req, res, body);
+      }
+      return respondWithStores([])(req, res, body);
+    });
+
+    const startedAt = Date.now();
+    await fetchStoresInBbox(BBOX, TAGS);
+    const waited = Date.now() - startedAt;
+
+    // The configured backoff is 1ms under test, so a wait of this length can
+    // only have come from the header.
+    expect(waited).to.be.at.least(retryAfterSeconds * 1000 * 0.9);
+  });
+
+  // A header far longer than a market can afford to wait must not park the
+  // whole run behind one tile.
+  it('caps a Retry-After that exceeds the backoff ceiling', async function () {
+    this.timeout(5000);
+    let call = 0;
+    overpassStub.respondWith((req, res, body) => {
+      call += 1;
+      if (call === 1) return respondWithRateLimit(3600)(req, res, body);
+      return respondWithStores([])(req, res, body);
+    });
+
+    const startedAt = Date.now();
+    await fetchStoresInBbox(BBOX, TAGS);
+    const waited = Date.now() - startedAt;
+
+    // An hour was asked for; the ceiling is what actually gets waited.
+    expect(waited).to.be.lessThan(config.overpassMaxBackoffMs * 3);
+    expect(overpassStub.requestCount).to.equal(2);
   });
 });

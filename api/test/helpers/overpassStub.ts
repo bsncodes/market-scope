@@ -101,6 +101,14 @@ export const respondWithServerError: Responder = (_req, res) => {
   res.end('overpass unavailable');
 };
 
+/** 429 with the wait the server wants, which the retry loop must honour. */
+export function respondWithRateLimit(retryAfterSeconds: number): Responder {
+  return (_req, res) => {
+    res.writeHead(429, { 'retry-after': String(retryAfterSeconds) });
+    res.end('too many requests');
+  };
+}
+
 export const respondWithBadRequest: Responder = (_req, res) => {
   res.writeHead(400);
   res.end('bad query');

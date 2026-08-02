@@ -14,10 +14,27 @@ export class HttpError extends Error {
     message: string,
     readonly body?: unknown,
     cause?: unknown,
+    /**
+     * How long the server asked us to wait, from `Retry-After`. Backing off by
+     * a locally-chosen delay when the server has named one is what turns a
+     * single 429 into a run of them.
+     */
+    readonly retryAfterMs?: number,
   ) {
     super(message, { cause });
     this.name = 'HttpError';
   }
+}
+
+/** `Retry-After` is either delta-seconds or an HTTP date. */
+function parseRetryAfter(raw: unknown): number | undefined {
+  if (typeof raw !== 'string' || raw.trim() === '') return undefined;
+
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds) * 1000;
+
+  const at = Date.parse(raw);
+  return Number.isNaN(at) ? undefined : Math.max(0, at - Date.now());
 }
 
 export interface HttpOptions {
@@ -59,6 +76,7 @@ function toHttpError(err: unknown, url: string): HttpError {
       `Request to ${url} failed: ${detail}`,
       err.response?.data,
       err,
+      parseRetryAfter(err.response?.headers?.['retry-after']),
     );
   }
   return new HttpError(
