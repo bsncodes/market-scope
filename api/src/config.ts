@@ -61,4 +61,33 @@ export const config = {
   tileSizeKm: numeric('TILE_SIZE_KM', 1),
   discoveryFreshnessDays: numeric('DISCOVERY_FRESHNESS_DAYS', 5),
   redisCacheTtlDays: numeric('REDIS_CACHE_TTL_DAYS', 1),
+
+  // Token bucket per service: sustained rate plus how many calls may burst
+  // before throttling begins.
+  //
+  // Nominatim's usage policy is an ABSOLUTE maximum of one request per second,
+  // so its burst stays at 1 — any burst at all would breach it.
+  //
+  // The rate sits just under 1/sec rather than exactly on it. Running at the
+  // ceiling leaves no room for timing jitter: a slow event loop tick or a GC
+  // pause landing badly can place two requests inside the same wall-clock
+  // second. 0.9/sec spaces them ~1.11s apart, which is the same margin the
+  // earlier fixed 1100ms interval had.
+  nominatimRatePerSecond: numeric('NOMINATIM_RATE_PER_SECOND', 0.9),
+  nominatimBurst: numeric('NOMINATIM_BURST', 1),
+  overpassRatePerSecond: numeric('OVERPASS_RATE_PER_SECOND', 1),
+  overpassBurst: numeric('OVERPASS_BURST', 3),
+  overpassTimeoutSeconds: numeric('OVERPASS_TIMEOUT_SECONDS', 25),
+
+  // Tile failures are isolated per tile and never reach BullMQ, so a retryable
+  // response has to be retried here or not at all.
+  overpassTileAttempts: numeric('OVERPASS_TILE_ATTEMPTS', 3),
+  overpassTileRetryDelayMs: numeric('OVERPASS_TILE_RETRY_DELAY_MS', 1000),
+
+  // The poll loop reads every ~10s, so writing progress more often than this
+  // costs updates without telling anyone anything sooner.
+  progressWriteIntervalMs: numeric('PROGRESS_WRITE_INTERVAL_MS', 2000),
+
+  discoveryJobAttempts: numeric('DISCOVERY_JOB_ATTEMPTS', 3),
+  discoveryJobBackoffMs: numeric('DISCOVERY_JOB_BACKOFF_MS', 5000),
 } as const;

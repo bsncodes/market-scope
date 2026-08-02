@@ -77,8 +77,9 @@ jobs:
 
   # Runs against real PostGIS: the geography columns, ST_MakePoint ordering and
   # CHECK constraints are exactly what these assert, so a stub or sqlite would
-  # verify nothing that matters. Geocoding is stubbed in-process, so nothing
-  # here reaches the real Nominatim.
+  # verify nothing that matters. Redis is needed because creating a market
+  # enqueues a discovery job. Nominatim and Overpass are stubbed in-process, so
+  # nothing here reaches either real service.
   test-integration:
     name: Test integration (api)
     runs-on: ubuntu-latest
@@ -99,8 +100,19 @@ jobs:
           --health-timeout 5s
           --health-retries 15
 
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+
     env:
       DATABASE_URL: postgres://market_scope:market_scope@localhost:5432/market_scope_test
+      REDIS_URL: redis://localhost:6379
 
     steps:
       - uses: actions/checkout@v4

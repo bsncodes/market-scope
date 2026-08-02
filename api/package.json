@@ -12,7 +12,9 @@
     "typecheck": "tsc --noEmit",
     "test": "mocha 'test/**/*.test.ts'",
     "test:unit": "mocha 'test/unit/**/*.test.ts'",
-    "test:integration": "mocha 'test/integration/**/*.test.ts'"
+    "test:integration": "mocha 'test/integration/**/*.test.ts'",
+    "worker": "tsx src/worker.ts",
+    "worker:dev": "tsx watch src/worker.ts"
   },
   "keywords": [],
   "author": "",
@@ -20,10 +22,12 @@
   "description": "",
   "dependencies": {
     "axios": "^1.19.0",
+    "bullmq": "^6.0.5",
     "country-state-city": "^3.2.1",
     "csv-parse": "^7.0.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "ioredis": "^6.0.0",
     "multer": "^2.2.0",
     "node-pg-migrate": "^9.0.0",
     "pg": "^8.22.0"

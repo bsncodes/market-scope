@@ -11,6 +11,164 @@ data exist).
 
 ---
 
+## Code flow
+
+### Files
+
+```
+POST /api/markets
+  routes/market.ts          validate body, area cap, enqueue
+  repositories/market.ts    createMarket, boundaryAreaSqKm
+  queue.ts                  enqueueDiscovery (jobId = market-<id>)
+
+worker
+  worker.ts                 BullMQ Worker, retry exhaustion -> failed
+  controllers/discovery.ts  the three stages, status transitions
+  controllers/geocode.ts    Nominatim + geocode_cache      (token bucket)
+  controllers/overpass.ts   Overpass + retryable/permanent (token bucket)
+  helpers/tiling.ts         bbox <-> tile keys
+  helpers/overpass.ts       build Overpass QL, parse elements
+  helpers/rateLimiter.ts    token bucket
+  repositories/discovery.ts freshness, upsert, clip, classify
+```
+
+### 1. Request path — returns before any fetching happens
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant API as Express
+    participant DB as Postgres/PostGIS
+    participant Q as Redis / BullMQ
+    participant W as Worker
+
+    C->>API: POST /api/markets
+    API->>API: parse bbox, reject inverted or out of range
+    API->>DB: city exists? categories exist?
+    API->>DB: ST_Area(boundary::geography) / 1e6
+    API-->>C: 400 if above 30 sq km
+    API->>DB: INSERT market (queued) + market_category
+    API->>Q: add job, jobId = market-<id>
+    API-->>C: 202 { market_id, status: queued }
+    Note over C,API: ~118ms measured — no external calls on this path
+    Q-->>W: deliver job
+    loop every ~10s (Cycle 4)
+        C->>API: GET /api/markets/:id/status
+        API->>DB: one row: status, error, progress
+    end
+```
+
+The job id is the market id, so a duplicate enqueue is ignored rather than
+running discovery twice.
+
+### 2. Worker pipeline — three stages, always terminal
+
+```mermaid
+flowchart TD
+    J["job { marketId }"] --> P["status = processing"]
+    P --> S1["Stage 1 — geocode candidates"]
+    S1 --> S2["Stage 2 — tile discovery"]
+    S2 --> S3["Stage 3 — classify portfolio<br/>ST_Contains, upsert is_inside"]
+    S3 --> Q{"produced anything?<br/>fetched + reused > 0"}
+    Q -->|yes| OK["status = completed<br/>last_discovered_at = now()<br/>error = partial failures, if any"]
+    Q -->|"no — every tile failed"| BAD["status = failed"]
+    P -.->|unexpected throw| BAD
+    BAD --> R{"BullMQ attempts left?"}
+    R -->|yes| RETRY["backoff 5s, then 10s"]
+    RETRY --> J
+    R -->|no| END["terminal"]
+    OK --> END
+```
+
+`processing` is never a resting state: every exit path writes `completed` or
+`failed`, otherwise the frontend would poll forever.
+
+### 3. Stage 1 — geocoding, cheapest source first
+
+```mermaid
+flowchart LR
+    A["portfolio_store<br/>location IS NULL"] --> B["loose text pre-filter<br/>city OR state OR country, ILIKE"]
+    B --> C["normalizeAddress()"]
+    C --> D{"in geocode_cache?"}
+    D -->|hit| G["use cached point"]
+    D -->|miss| E["Nominatim<br/>0.9/sec, burst 1"]
+    E --> F{"resolved?"}
+    F -->|yes| H["write geocode_cache<br/>+ portfolio_store.location"]
+    F -->|no| I["skip — stays unlocated"]
+    H --> G
+```
+
+The pre-filter only bounds API cost; it can add candidates but never remove a
+genuine match. `geocode_cache` needs no freshness check — an address's
+coordinates do not change.
+
+### 4. Stage 2 — the tile loop
+
+```mermaid
+flowchart TD
+    A["market.boundary POLYGON"] --> B["ST_YMin/XMin/YMax/XMax → bbox"]
+    B --> C["tileKeysForBbox(bbox, step)<br/>over-inclusive by design"]
+    C --> D["for each category"]
+    D --> E["findFreshTileKeys()<br/>fetched_at within 5 days"]
+    E --> F["for each tile"]
+    F --> G{"cached AND fresh?"}
+    G -->|yes| H["tilesReused++<br/>zero external calls"]
+    G -->|"no — missing or stale"| I["Overpass, token bucket<br/>1/sec, burst 3"]
+    I --> J{"succeeded?"}
+    J -->|yes| K["saveTileStores()<br/>upsert tile_fetch, replace children"]
+    J -->|no| L["tilesFailed++<br/>record reason, keep going"]
+    K --> M["tilesFetched++"]
+    H --> N["assemble + clip"]
+    M --> N
+    L --> N
+    N --> O["DISTINCT ON osm_element_id<br/>+ ST_Contains(boundary, location)"]
+```
+
+Stale is treated exactly like missing, which is why correctness never depends
+on a cleanup job (§3.6).
+
+### 5. Why tiles are not attached to markets
+
+```
+market ──< market_category >── category
+   │                              │
+   │ (no FK — deliberate)         │
+   ▼                              ▼
+boundary ····· overlaps ····· tile_fetch (tile_key, category_id, fetched_at)
+                                   │
+                                   ▼ ON DELETE CASCADE
+                             discovered_store (osm_element_id, location)
+```
+
+`discovered_store` hangs off `tile_fetch`, never off `market`. That decoupling
+is what lets two overlapping markets share one fetch — and is also why a
+cleanup job would silently empty an existing market's dashboard.
+
+### 6. Status transitions
+
+```mermaid
+stateDiagram-v2
+    [*] --> queued: POST /api/markets
+    queued --> processing: worker picks up
+    processing --> completed: all tiles fetched or reused
+    processing --> completed: some failed — partial, error recorded
+    processing --> failed: every tile failed, nothing cached
+    processing --> failed: retries exhausted
+    completed --> [*]
+    failed --> [*]
+```
+
+### 7. Measured behaviour
+
+| Run                             | Tiles                    | Overpass calls |
+| ------------------------------- | ------------------------ | -------------- |
+| First market                    | 9 total, 9 fetched       | 9              |
+| Overlapping market (shifted)    | 12 total, 9 reused       | 3              |
+| Identical market                | all reused               | 0              |
+
+---
+
 ## 3.1 Create-market endpoint
 
 - `POST /markets`: validate boundary is within the 30 sq km cap
@@ -137,20 +295,20 @@ say why rather than list it as unfinished:
 
 ## Exit criteria
 
-- [ ] `POST /markets` for a real small city boundary returns `200` +
+- [x] `POST /markets` for a real small city boundary returns `200` +
       `queued` in well under a second (no synchronous work in the handler).
-- [ ] Polling `/markets/:id/status` reaches `completed` within a reasonable
+- [x] Polling `/markets/:id/status` reaches `completed` within a reasonable
       time for a small boundary + 1-2 categories.
-- [ ] `discovered_store` rows for the market are correctly clipped — spot
+- [x] `discovered_store` rows for the market are correctly clipped — spot
       check a store near the boundary edge that should be excluded is
       actually excluded.
-- [ ] Portfolio rows inside the boundary are marked `is_inside=true` in
+- [x] Portfolio rows inside the boundary are marked `is_inside=true` in
       `portfolio_store_market`; rows outside are `false`.
-- [ ] Creating a **second market with an overlapping boundary** (same
+- [x] Creating a **second market with an overlapping boundary** (same
       city, overlapping rectangle) reuses already-cached tiles — verify
       via logs or a temporary counter that fewer external Overpass calls
       happen on the second run than the first.
-- [ ] Force a category/tile fetch to fail (e.g. temporarily point at a bad
+- [x] Force a category/tile fetch to fail (e.g. temporarily point at a bad
       URL) and confirm the market still reaches a sane terminal state
       (`failed` or a documented partial-success behavior) instead of
       hanging in `processing`.

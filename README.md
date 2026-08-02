@@ -6,7 +6,10 @@ inside it, and visualise everything on a dashboard.
 
 An npm workspaces monorepo — one install at the root covers both packages.
 
-- `api/` — Node.js + TypeScript service (Postgres/PostGIS, Redis, BullMQ)
+- `api/` — Node.js + TypeScript service (Postgres/PostGIS, Redis, BullMQ).
+  Runs as two processes: the HTTP API (`npm run dev`) and the discovery worker
+  (`npm run worker`). Market creation enqueues a job the worker consumes, so
+  both must be running for discovery to complete.
 - `app/` — Vite + React + TypeScript frontend
 
 ## Setup
@@ -33,10 +36,12 @@ create the one it runs in.
 Run from the repo root:
 
 ```bash
-npm run ci                            # what CI runs: format:check + lint + typecheck
+npm run ci                            # what CI runs: format:check + lint + typecheck + build
+npm test                              # unit + integration (needs docker compose up)
 npm run format                        # apply Prettier formatting
 npm run lint                          # oxlint across both workspaces
 
+npm run worker       --workspace api  # discovery worker (required for market creation)
 npm run migrate:up   --workspace api  # apply migrations
 npm run migrate:down --workspace api  # roll back one migration
 npm run seed         --workspace api  # re-seed reference data
