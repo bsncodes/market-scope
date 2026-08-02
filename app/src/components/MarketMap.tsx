@@ -39,6 +39,16 @@ const STYLE: Record<LayerKey, L.CircleMarkerOptions & { radius: number }> = {
     weight: 2,
     fillOpacity: 0.9,
   },
+  // Deliberately the heaviest stroke of the four. A match is the most specific
+  // thing the map can say about a store, and it has to stay readable sitting
+  // on top of the discovered pin it matched.
+  matched: {
+    radius: 9,
+    color: '#4c1d95',
+    fillColor: '#a78bfa',
+    weight: 3,
+    fillOpacity: 0.95,
+  },
 };
 
 interface Props {
@@ -99,9 +109,19 @@ export function MarketMap({ boundary, discovered, portfolio, visible }: Props) {
         ))}
 
       {portfolio
-        .filter((store) => visible[store.is_inside ? 'inside' : 'outside'])
+        .filter((store) => {
+          const home: LayerKey = store.is_inside ? 'inside' : 'outside';
+          return visible[home] || (store.matched && visible.matched);
+        })
         .map((store) => {
-          const layer: LayerKey = store.is_inside ? 'inside' : 'outside';
+          // One pin per store. A matched store belongs to two layers, and the
+          // match is the more specific fact, so it wins while that layer is on.
+          const layer: LayerKey =
+            store.matched && visible.matched
+              ? 'matched'
+              : store.is_inside
+                ? 'inside'
+                : 'outside';
           return (
             <CircleMarker
               key={`p-${store.id}`}
@@ -116,6 +136,9 @@ export function MarketMap({ boundary, discovered, portfolio, visible }: Props) {
                 <br />
                 <span className="popup-meta">
                   {store.is_inside ? 'Inside' : 'Outside'} the boundary
+                  {store.matched && store.match_distance_m !== null
+                    ? ` · matched to ${store.matched_osm_id} at ${Math.round(store.match_distance_m)} m`
+                    : ' · not found in OpenStreetMap'}
                   {store.address ? ` · ${store.address}` : ''}
                 </span>
               </Popup>

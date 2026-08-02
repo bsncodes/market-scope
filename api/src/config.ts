@@ -66,6 +66,13 @@ export const config = {
   ),
 
   marketMaxAreaSqKm: numeric('MARKET_MAX_AREA_SQKM', 30),
+
+  // How close a discovered store has to be before we call it the same shop as
+  // one of yours. 150 m is roughly a city block: far enough to absorb the
+  // disagreement between a geocoded address and where OSM put the building,
+  // close enough that two genuinely different shops on one street do not pair
+  // up. Metres only work because both columns are geography — see ADR-0002.
+  storeMatchRadiusM: numeric('STORE_MATCH_RADIUS_M', 150),
   tileSizeKm: numeric('TILE_SIZE_KM', 2),
   discoveryFreshnessDays: numeric('DISCOVERY_FRESHNESS_DAYS', 5),
   redisCacheTtlDays: numeric('REDIS_CACHE_TTL_DAYS', 1),

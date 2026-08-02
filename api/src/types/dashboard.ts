@@ -33,6 +33,11 @@ export interface PortfolioStoreForMarket {
   is_inside: boolean;
   lat: number;
   lng: number;
+  /** A discovered store within the match radius — i.e. OSM already knows this shop. */
+  matched: boolean;
+  /** Distance to the nearest such store, in metres. Null when unmatched. */
+  match_distance_m: number | null;
+  matched_osm_id: string | null;
 }
 
 export interface MarketSummary {
