@@ -37,8 +37,7 @@ export function MarketsPage() {
         </Link>
         {hasPortfolio ? (
           <span className="footnote">
-            Using the {portfolio.data?.total} stores already uploaded ·{' '}
-            <Link to="/upload">replace them</Link>
+            Using the {portfolio.data?.total} stores already uploaded.
           </span>
         ) : (
           !portfolio.loading && (
