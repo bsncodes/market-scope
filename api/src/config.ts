@@ -45,6 +45,14 @@ function numeric(name: string, fallback: number): number {
 export const config = {
   port: numeric('PORT', 3000),
 
+  // The frontend runs on its own origin under Vite, so every browser request
+  // is cross-origin and fails preflight without this. Comma-separated so a
+  // deployed origin can be added without code changes.
+  corsOrigins: optional('CORS_ORIGINS', 'http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+
   databaseUrl: required('DATABASE_URL'),
   redisUrl: optional('REDIS_URL', 'redis://localhost:6379'),
 

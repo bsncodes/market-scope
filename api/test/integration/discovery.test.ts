@@ -19,6 +19,13 @@ import {
   respondWithStoresInBbox,
 } from '../helpers/overpassStub';
 
+/** The market always exists in these specs; this keeps the assertions flat. */
+async function readStatus(marketId: number) {
+  const status = await findMarketStatus(marketId);
+  if (!status) throw new Error(`market ${marketId} disappeared`);
+  return status;
+}
+
 describe('discovery pipeline', () => {
   let cityId: number;
   let cityName: string;
@@ -320,7 +327,7 @@ describe('discovery pipeline', () => {
         outcome.progress.tilesTotal + 1,
       );
 
-      const status = await findMarketStatus(marketId);
+      const status = await readStatus(marketId);
       expect(status.status).to.equal('completed');
       expect(status.error).to.equal(null);
     });
@@ -372,7 +379,7 @@ describe('discovery pipeline', () => {
       expect(outcome.progress.tilesFailed).to.be.greaterThan(0);
       expect(outcome.progress.tilesFetched).to.be.greaterThan(0);
 
-      const status = await findMarketStatus(marketId);
+      const status = await readStatus(marketId);
       expect(status.status).to.equal('completed');
       expect(status.error).to.match(/could not be fetched/);
     });
@@ -391,7 +398,7 @@ describe('discovery pipeline', () => {
         outcome.progress.tilesTotal,
       );
 
-      const status = await findMarketStatus(marketId);
+      const status = await readStatus(marketId);
       expect(status.status).to.equal('failed');
       expect(status.error).to.be.a('string');
     });
@@ -403,7 +410,7 @@ describe('discovery pipeline', () => {
       const marketId = await newMarket();
       await runDiscovery(marketId);
 
-      const status = await findMarketStatus(marketId);
+      const status = await readStatus(marketId);
       expect(['completed', 'failed']).to.include(status.status);
     });
 
@@ -428,7 +435,7 @@ describe('discovery pipeline', () => {
       }
 
       expect(threw).to.equal(true);
-      const status = await findMarketStatus(marketId);
+      const status = await readStatus(marketId);
       expect(status.status).to.equal('processing');
       expect(status.status).to.not.equal('failed');
     });
@@ -464,7 +471,7 @@ describe('discovery pipeline', () => {
 
       // An address the geocoder simply could not place is normal, so it is not
       // reported to the user as a fault.
-      const status = await findMarketStatus(marketId);
+      const status = await readStatus(marketId);
       expect(status.error).to.equal(null);
     });
   });
@@ -475,13 +482,16 @@ describe('discovery pipeline', () => {
       const marketId = await newMarket();
       await runDiscovery(marketId);
 
-      const status = await findMarketStatus(marketId);
+      const status = await readStatus(marketId);
       expect(status.status).to.equal('completed');
       expect(status.last_discovered_at).to.not.equal(null);
-      expect(status.progress.tilesTotal).to.be.greaterThan(0);
-      expect(
-        status.progress.tilesFetched + status.progress.tilesReused,
-      ).to.equal(status.progress.tilesTotal);
+
+      const progress = status.progress;
+      if (!progress) throw new Error('progress was never written');
+      expect(progress.tilesTotal).to.be.greaterThan(0);
+      expect(progress.tilesFetched + progress.tilesReused).to.equal(
+        progress.tilesTotal,
+      );
     });
   });
 });

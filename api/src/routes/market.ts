@@ -4,10 +4,16 @@ import { requestValidationFailed, resourceNotFound } from '../errors';
 import { requireId } from '../helpers/request';
 import { enqueueDiscovery } from '../queue';
 import {
+  findDiscoveredStores,
+  findMarketDetail,
+  findPortfolioForMarket,
+} from '../repositories/dashboard';
+import {
   boundaryAreaSqKm,
   categoryIdsExist,
   cityExists,
   createMarket,
+  findMarket,
   findMarketStatus,
 } from '../repositories/market';
 import { HttpStatus } from '../types/http';
@@ -62,6 +68,58 @@ marketRouter.get('/:marketId/status', async (req, res) => {
     progress: market.progress ?? null,
   });
 });
+
+marketRouter.get('/:marketId', async (req, res) => {
+  const marketId = requireId(req.params.marketId, 'marketId');
+  const market = await findMarketDetail(marketId);
+  if (!market) {
+    throw resourceNotFound(`No market with id ${marketId}.`);
+  }
+
+  res.json({
+    market_id: market.id,
+    status: market.status,
+    error: market.error,
+    last_discovered_at: market.last_discovered_at,
+    progress: market.progress,
+    boundary: market.boundary,
+    city: market.city,
+    categories: market.categories,
+  });
+});
+
+marketRouter.get('/:marketId/discovered-stores', async (req, res) => {
+  const marketId = await requireExistingMarket(req.params.marketId);
+  const stores = await findDiscoveredStores(marketId);
+  res.json({ market_id: marketId, count: stores.length, stores });
+});
+
+marketRouter.get('/:marketId/portfolio', async (req, res) => {
+  const marketId = await requireExistingMarket(req.params.marketId);
+  const stores = await findPortfolioForMarket(marketId);
+
+  // Both sides come back in one payload with the flag intact; the frontend
+  // toggles them as two independent layers, and the counts are what the
+  // dashboard header shows without it having to filter twice.
+  res.json({
+    market_id: marketId,
+    inside_count: stores.filter((store) => store.is_inside).length,
+    outside_count: stores.filter((store) => !store.is_inside).length,
+    stores,
+  });
+});
+
+/**
+ * An unknown market and a market with nothing in it both return an empty
+ * list otherwise, which reads to the UI as "discovery found nothing".
+ */
+async function requireExistingMarket(raw: unknown): Promise<number> {
+  const marketId = requireId(raw, 'marketId');
+  if (!(await findMarket(marketId))) {
+    throw resourceNotFound(`No market with id ${marketId}.`);
+  }
+  return marketId;
+}
 
 function parseCreateMarket(body: unknown): {
   cityId: number;
