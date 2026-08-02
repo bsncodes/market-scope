@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 
-const STEPS = ['Upload portfolio', 'Define market', 'Discover', 'Dashboard'];
+// Only the flow is listed. The dashboard is the home page and the brand link
+// already leads there, so giving it a step of its own said the same thing
+// twice. None of these are links: jumping into the middle of the flow is not
+// a meaningful action.
+const STEPS = ['Upload portfolio', 'Define market', 'Discover'];
 
-// The first two steps are reachable at any time: re-uploading a portfolio and
-// starting another market are both things you do repeatedly, not once. The
-// last two belong to a specific market, so they are only ever a label.
-const STEP_LINKS: (string | null)[] = ['/', '/setup', null, null];
-
+/** `step` is 1..3 inside the flow, or 0 on the dashboard, where none is current. */
 export function Layout({
   step,
   title,
@@ -28,35 +28,26 @@ export function Layout({
 
         <ol className="steps">
           {STEPS.map((label, index) => {
+            const position = index + 1;
             const className =
-              index === step
+              position === step
                 ? 'steps__item steps__item--current'
-                : index < step
+                : position < step
                   ? 'steps__item steps__item--done'
                   : 'steps__item';
-            const href = STEP_LINKS[index];
 
             return (
               <li key={label} className={className}>
-                <span className="steps__index">{index + 1}</span>
-                {href ? (
-                  <Link className="steps__link" to={href}>
-                    {label}
-                  </Link>
-                ) : (
-                  label
-                )}
+                <span className="steps__index">{position}</span>
+                {label}
               </li>
             );
           })}
         </ol>
 
         <nav className="shell__nav">
-          <NavLink to="/" end className="shell__navlink">
+          <NavLink to="/portfolio" end className="shell__navlink">
             Portfolio
-          </NavLink>
-          <NavLink to="/markets" end className="shell__navlink">
-            Markets
           </NavLink>
         </nav>
       </header>

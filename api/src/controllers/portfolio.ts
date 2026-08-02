@@ -6,6 +6,7 @@ import {
   normalizeHeader,
   parseCoordinate,
 } from '../helpers/csv';
+import { reclassifyAllMarkets } from '../repositories/discovery';
 import { replacePortfolio } from '../repositories/portfolio';
 import {
   OPTIONAL_HEADERS,
@@ -86,10 +87,17 @@ export async function replacePortfolioFromCsv(
   const imported = await replacePortfolio(rows);
   const withCoordinates = rows.filter((r) => r.latitude !== null).length;
 
+  // Existing markets keep their boundaries and their discovered stores, so
+  // they stay openable — but their portfolio split refers to rows that no
+  // longer exist. Rebuilding it here keeps every dashboard readable rather
+  // than only the ones created after the most recent upload.
+  const reclassified = await reclassifyAllMarkets();
+
   return {
     imported,
     with_coordinates: withCoordinates,
     awaiting_geocoding: imported - withCoordinates,
+    reclassified_markets: reclassified,
   };
 }
 

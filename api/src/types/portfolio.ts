@@ -32,4 +32,18 @@ export interface UploadResult {
   imported: number;
   with_coordinates: number;
   awaiting_geocoding: number;
+  /** Rows rewritten across existing markets, so their layers survive a re-upload. */
+  reclassified_markets: number;
+}
+
+export interface PortfolioStoreRow {
+  id: number;
+  store_name: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  category: string | null;
+  lat: number | null;
+  lng: number | null;
 }

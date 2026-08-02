@@ -212,6 +212,30 @@ export async function setPortfolioLocation(
  * ST_Contains needs two geometries, hence the cast: location is geography so
  * that distance work elsewhere comes out in metres rather than degrees.
  */
+/**
+ * Reclassifies every existing market against the portfolio as it stands now.
+ *
+ * An upload replaces the portfolio wholesale, and portfolio_store_market
+ * cascades from portfolio_store — so uploading silently emptied the inside and
+ * outside layers of every market created before it, while leaving the market
+ * and its discovered stores intact. The dashboard then looked like it had just
+ * stopped plotting the portfolio.
+ *
+ * One statement rather than a loop: the work is a spatial join the planner can
+ * do in a single pass, and looping would issue a query per market.
+ */
+export async function reclassifyAllMarkets(): Promise<number> {
+  const { rowCount } = await pool.query(
+    `INSERT INTO portfolio_store_market (market_id, portfolio_store_id, is_inside)
+     SELECT m.id, ps.id, ST_Contains(m.boundary, ps.location::geometry)
+     FROM market m, portfolio_store ps
+     WHERE ps.location IS NOT NULL
+     ON CONFLICT (market_id, portfolio_store_id)
+     DO UPDATE SET is_inside = EXCLUDED.is_inside`,
+  );
+  return rowCount ?? 0;
+}
+
 export async function classifyPortfolioForMarket(
   marketId: number,
 ): Promise<{ inside: number; outside: number }> {

@@ -38,6 +38,25 @@ export interface UploadResult {
   imported: number;
   with_coordinates: number;
   awaiting_geocoding: number;
+  reclassified_markets: number;
+}
+
+export interface PortfolioStoreRow {
+  id: number;
+  store_name: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  category: string | null;
+  lat: number | null;
+  lng: number | null;
+}
+
+export interface PortfolioListResponse {
+  count: number;
+  limit: number;
+  stores: PortfolioStoreRow[];
 }
 
 /** Per-row problems the upload endpoint reports in `error.details`. */

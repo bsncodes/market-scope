@@ -75,7 +75,7 @@ export function DashboardPage() {
   const error = market.error ?? discovered.error ?? portfolio.error;
   if (error) {
     return (
-      <Layout step={3} title="Market dashboard">
+      <Layout step={0} title="Market dashboard">
         <ErrorBox error={error} />
       </Layout>
     );
@@ -83,7 +83,7 @@ export function DashboardPage() {
 
   if (!market.data) {
     return (
-      <Layout step={3} title="Market dashboard">
+      <Layout step={0} title="Market dashboard">
         <div className="card">Loading market…</div>
       </Layout>
     );
@@ -93,7 +93,7 @@ export function DashboardPage() {
 
   return (
     <Layout
-      step={3}
+      step={0}
       title={`${city.name} market`}
       subtitle={
         <>
@@ -156,10 +156,10 @@ export function DashboardPage() {
           </ul>
 
           <div className="actions">
-            <Link className="button button--primary" to="/setup">
+            <Link className="button button--primary" to="/upload">
               New market
             </Link>
-            <Link className="button" to="/markets">
+            <Link className="button" to="/">
               All markets
             </Link>
           </div>

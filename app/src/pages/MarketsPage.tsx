@@ -20,22 +20,26 @@ export function MarketsPage() {
 
   return (
     <Layout
-      step={3}
-      title="Markets"
-      subtitle="Every market you have created, newest first. Reopen a completed one to see its dashboard again."
+      step={0}
+      title="Dashboard"
+      subtitle="Every market you have created, newest first. Reopen a completed one to see its map again."
     >
+      <div className="actions" style={{ marginTop: 0, marginBottom: 18 }}>
+        <Link className="button button--primary" to="/upload">
+          Create market
+        </Link>
+      </div>
+
       {markets.error && <ErrorBox error={markets.error} />}
 
       {markets.loading && <div className="card">Loading markets…</div>}
 
       {markets.data && markets.data.markets.length === 0 && (
         <div className="card">
-          <p>No markets yet.</p>
-          <div className="actions">
-            <Link className="button button--primary" to="/setup">
-              Create your first market
-            </Link>
-          </div>
+          <p>
+            No markets yet. Upload a store portfolio, then draw a boundary to
+            discover what is around it.
+          </p>
         </div>
       )}
 

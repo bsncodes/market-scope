@@ -33,6 +33,9 @@ describe('POST /api/portfolio/upload', () => {
         imported: 2,
         with_coordinates: 1,
         awaiting_geocoding: 1,
+        // Zero here because this spec has no markets; the reclassification
+        // itself is covered in dashboard.routes.
+        reclassified_markets: 0,
       });
       expect(await countPortfolioRows()).to.equal(2);
     });

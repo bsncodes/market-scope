@@ -11,7 +11,7 @@ import {
   SMALL_BOUNDARY,
 } from '../helpers/discoveryFixtures';
 import { overpassStub, respondWithStoresInBbox } from '../helpers/overpassStub';
-import { apiGet, startTestServer } from '../helpers/testServer';
+import { apiGet, apiUpload, startTestServer } from '../helpers/testServer';
 
 interface MarketDetailBody {
   market_id: number;
@@ -413,6 +413,44 @@ describe('dashboard read endpoints', () => {
     it('404s an unknown market', async () => {
       const res = await apiGet(`/api/markets/999999/portfolio`);
       expect(res.status).to.equal(404);
+    });
+
+    // portfolio_store_market cascades from portfolio_store, so replacing the
+    // portfolio used to wipe the split of every market created before it —
+    // silently, since the market and its discovered stores survived and only
+    // the two portfolio layers went blank.
+    it('survives a portfolio re-upload', async () => {
+      overpassStub.respondWith(respondWithStoresInBbox([]));
+      await insertPortfolioStore({ name: 'Original', lat: 12.97, lng: 77.6 });
+
+      const marketId = await newMarket();
+      await runDiscovery(marketId);
+      expect(
+        (await apiGet<PortfolioBody>(`/api/markets/${marketId}/portfolio`)).body
+          .inside_count,
+      ).to.equal(1);
+
+      const csv = [
+        'store_name,address,city,state,country,category,latitude,longitude',
+        'Replacement Inside,Somewhere,Bengaluru,Karnataka,India,Supermarket,12.97,77.6',
+        'Replacement Outside,Elsewhere,Bengaluru,Karnataka,India,Supermarket,12.5,77.2',
+      ].join('\n');
+      const upload = await apiUpload<{ reclassified_markets: number }>(
+        '/api/portfolio/upload',
+        Buffer.from(csv),
+      );
+      expect(upload.status).to.equal(201);
+      expect(upload.body.reclassified_markets).to.be.greaterThan(0);
+
+      const res = await apiGet<PortfolioBody>(
+        `/api/markets/${marketId}/portfolio`,
+      );
+      expect(res.body.inside_count).to.equal(1);
+      expect(res.body.outside_count).to.equal(1);
+      expect(res.body.stores.map((store) => store.name).sort()).to.deep.equal([
+        'Replacement Inside',
+        'Replacement Outside',
+      ]);
     });
   });
 

@@ -10,6 +10,7 @@ import type {
   MarketDetail,
   MarketListResponse,
   MarketStatusResponse,
+  PortfolioListResponse,
   PortfolioResponse,
   State,
   UploadResult,
@@ -17,6 +18,8 @@ import type {
 
 export const uploadPortfolio = (file: File) =>
   postFile<UploadResult>('/portfolio/upload', file);
+
+export const listPortfolio = () => get<PortfolioListResponse>('/portfolio');
 
 export const listCountries = () => get<Country[]>('/location/countries');
 

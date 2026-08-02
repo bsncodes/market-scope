@@ -88,7 +88,7 @@ export function SetupPage() {
 
   return (
     <Layout
-      step={1}
+      step={2}
       title="Define your market"
       subtitle="Pick a city and the store categories to look for, then size the boundary. Drag the centre handle to move the rectangle and the corners to resize it."
     >

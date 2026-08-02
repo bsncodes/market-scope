@@ -1,5 +1,5 @@
 import { pool } from '../db';
-import type { PortfolioRow } from '../types/portfolio';
+import type { PortfolioRow, PortfolioStoreRow } from '../types/portfolio';
 
 /**
  * Replaces the entire portfolio in one transaction (cycles/02 §2.1). The
@@ -60,4 +60,24 @@ export async function countPortfolioStores(): Promise<{
      FROM portfolio_store`,
   );
   return rows[0];
+}
+
+/**
+ * The portfolio as it currently stands, for the view that answers "what is
+ * actually in the table". Bounded, because an upload can hold thousands of
+ * rows and this is a browsing screen, not an export.
+ */
+export async function listPortfolioStores(
+  limit: number,
+): Promise<PortfolioStoreRow[]> {
+  const { rows } = await pool.query<PortfolioStoreRow>(
+    `SELECT id, store_name, address, city, state, country, category,
+            ST_Y(location::geometry) AS lat,
+            ST_X(location::geometry) AS lng
+     FROM portfolio_store
+     ORDER BY store_name, id
+     LIMIT $1`,
+    [limit],
+  );
+  return rows;
 }

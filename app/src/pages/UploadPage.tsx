@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import type { ApiError } from '../api/client';
 import { uploadPortfolio } from '../api/endpoints';
 import { ErrorBox } from '../components/ErrorBox';
@@ -34,7 +34,7 @@ export function UploadPage() {
 
   return (
     <Layout
-      step={0}
+      step={1}
       title="Upload your store portfolio"
       subtitle={`A CSV with ${COLUMNS}. Rows that already carry coordinates skip geocoding entirely.`}
     >
@@ -69,9 +69,6 @@ export function UploadPage() {
               Continue to market setup →
             </button>
           )}
-          <Link className="button" to="/markets">
-            View existing markets
-          </Link>
         </div>
 
         {error && <ErrorBox error={error} />}

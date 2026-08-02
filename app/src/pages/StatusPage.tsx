@@ -61,7 +61,7 @@ export function StatusPage() {
 
   return (
     <Layout
-      step={2}
+      step={3}
       title={failed ? 'Discovery failed' : 'Discovering stores'}
       subtitle={
         failed
@@ -132,8 +132,8 @@ export function StatusPage() {
               Try a different market
             </button>
           )}
-          <Link className="button" to="/markets">
-            All markets
+          <Link className="button" to="/">
+            Back to dashboard
           </Link>
         </div>
       </section>
