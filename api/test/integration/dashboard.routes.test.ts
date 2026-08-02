@@ -7,6 +7,7 @@ import {
   clearDiscoveryFixtures,
   clearDiscoveryState,
   insertPortfolioStore,
+  pointAtDistance,
   seedCategory,
   SMALL_BOUNDARY,
 } from '../helpers/discoveryFixtures';
@@ -38,8 +39,10 @@ interface DiscoveredBody {
 
 interface PortfolioBody {
   market_id: number;
+  match_radius_m: number;
   inside_count: number;
   outside_count: number;
+  matched_count: number;
   stores: {
     id: number;
     name: string;
@@ -48,6 +51,9 @@ interface PortfolioBody {
     is_inside: boolean;
     lat: number;
     lng: number;
+    matched: boolean;
+    match_distance_m: number | null;
+    matched_osm_id: string | null;
   }[];
 }
 
@@ -451,6 +457,133 @@ describe('dashboard read endpoints', () => {
         'Replacement Inside',
         'Replacement Outside',
       ]);
+    });
+  });
+
+  // The bonus: does OSM already know about this shop? A match means a
+  // discovered store sits within the radius, which is only expressible in
+  // metres because both columns are geography (ADR-0002).
+  describe('matching portfolio stores against discovered ones', () => {
+    const HOME = { lat: 12.97, lng: 77.6 };
+
+    /** Runs discovery with one discovered store `metres` east of HOME. */
+    async function marketWithStoreAt(metres: number) {
+      const neighbour = await pointAtDistance(HOME.lat, HOME.lng, metres);
+      overpassStub.respondWith(
+        respondWithStoresInBbox([
+          {
+            id: 42,
+            lat: neighbour.lat,
+            lon: neighbour.lng,
+            tags: { name: 'Nilgiris' },
+          },
+        ]),
+      );
+      await insertPortfolioStore({ name: 'Ours', ...HOME });
+
+      const marketId = await newMarket();
+      await runDiscovery(marketId);
+      return (await apiGet<PortfolioBody>(`/api/markets/${marketId}/portfolio`))
+        .body;
+    }
+
+    it('matches a store just inside the radius', async () => {
+      const body = await marketWithStoreAt(149);
+
+      expect(body.matched_count).to.equal(1);
+      expect(body.stores[0].matched).to.equal(true);
+      expect(Number(body.stores[0].match_distance_m)).to.be.closeTo(149, 1);
+      expect(body.stores[0].matched_osm_id).to.equal('node/42');
+    });
+
+    // Measured, not assumed: ST_DWithin is inclusive of the radius itself.
+    it('matches a store at exactly the radius', async () => {
+      const body = await marketWithStoreAt(150);
+
+      expect(body.match_radius_m).to.equal(150);
+      expect(body.stores[0].matched).to.equal(true);
+    });
+
+    it('does not match a store just outside the radius', async () => {
+      const body = await marketWithStoreAt(151);
+
+      expect(body.matched_count).to.equal(0);
+      expect(body.stores[0].matched).to.equal(false);
+      expect(body.stores[0].match_distance_m).to.equal(null);
+      expect(body.stores[0].matched_osm_id).to.equal(null);
+    });
+
+    it('reports the nearest match when several are in range', async () => {
+      const near = await pointAtDistance(HOME.lat, HOME.lng, 40);
+      const far = await pointAtDistance(HOME.lat, HOME.lng, 140);
+      overpassStub.respondWith(
+        respondWithStoresInBbox([
+          { id: 1, lat: far.lat, lon: far.lng, tags: { name: 'Far' } },
+          { id: 2, lat: near.lat, lon: near.lng, tags: { name: 'Near' } },
+        ]),
+      );
+      await insertPortfolioStore({ name: 'Ours', ...HOME });
+
+      const marketId = await newMarket();
+      await runDiscovery(marketId);
+
+      const body = (
+        await apiGet<PortfolioBody>(`/api/markets/${marketId}/portfolio`)
+      ).body;
+      expect(body.stores[0].matched_osm_id).to.equal('node/2');
+      expect(Number(body.stores[0].match_distance_m)).to.be.closeTo(40, 1);
+    });
+
+    // A neighbouring market can pull a pharmacy into a tile this market also
+    // covers. Matching against it would claim OSM knows about a supermarket
+    // because there is a chemist next door.
+    it('ignores a nearby store from a category this market did not select', async () => {
+      const otherCategoryId = await seedCategory('Match Pharmacy', [
+        'amenity=pharmacy',
+      ]);
+      const neighbour = await pointAtDistance(HOME.lat, HOME.lng, 50);
+      overpassStub.respondWith(
+        respondWithStoresInBbox([
+          { id: 7, lat: neighbour.lat, lon: neighbour.lng },
+        ]),
+      );
+
+      const pharmacyMarket = await createMarket({
+        cityId,
+        categoryIds: [otherCategoryId],
+        boundary: SMALL_BOUNDARY,
+      });
+      await runDiscovery(pharmacyMarket);
+
+      // The stub answers any query, so without this the supermarket run would
+      // discover the same element again under its own category and the test
+      // would pass for the wrong reason.
+      overpassStub.respondWith(respondWithStoresInBbox([]));
+
+      await insertPortfolioStore({ name: 'Ours', ...HOME });
+      const supermarketMarket = await newMarket();
+      await runDiscovery(supermarketMarket);
+
+      const body = (
+        await apiGet<PortfolioBody>(
+          `/api/markets/${supermarketMarket}/portfolio`,
+        )
+      ).body;
+      expect(body.matched_count).to.equal(0);
+    });
+
+    it('leaves an unmatched store reported as such rather than omitted', async () => {
+      overpassStub.respondWith(respondWithStoresInBbox([]));
+      await insertPortfolioStore({ name: 'Ours', ...HOME });
+
+      const marketId = await newMarket();
+      await runDiscovery(marketId);
+
+      const body = (
+        await apiGet<PortfolioBody>(`/api/markets/${marketId}/portfolio`)
+      ).body;
+      expect(body.stores).to.have.length(1);
+      expect(body.stores[0].matched).to.equal(false);
     });
   });
 

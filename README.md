@@ -168,6 +168,13 @@ after a sample of tile queries came back with 50% first-attempt failures.
 That investigation also found the code was ignoring `Retry-After` entirely,
 which turns one rate-limit response into a run of them.
 
+**Matching your stores against OSM's** ([ADR-0010](docs/decisions/0010-store-matching.md)).
+A fourth layer marks portfolio stores that already have an OpenStreetMap store
+within 150 metres. `ST_DWithin` takes metres only because both columns are
+`geography`; on `geometry` that argument would be degrees. It is computed on
+read rather than stored, because a match depends on discovered stores that
+change whenever a tile is re-fetched.
+
 **No state library on the frontend** ([ADR-0009](docs/decisions/0009-frontend-state.md)).
 Six screens, nothing genuinely shared between them. One `useRequest` hook
 covers loading, errors and cancelling superseded responses in about sixty
@@ -212,6 +219,11 @@ for the sizes involved; a production version would stream to disk.
 **Reference data is India only**, seeded from a static package. Adding another
 country is a seed change, but the data has the granularity that package has —
 242 cities for Karnataka, only 4 for Puducherry.
+
+**Store matching is proximity, not identity.** Two supermarkets 100 m apart
+match each other regardless of brand. It also looks poor against the sample
+portfolios, since those are invented stores that mostly have no real OSM
+neighbour — the layer is honest but nearly empty for them.
 
 **A boundary corner dragged past the map's edge can't be grabbed again.** It's
 clipped by the container's overflow. Recoverable by panning or zooming out,
