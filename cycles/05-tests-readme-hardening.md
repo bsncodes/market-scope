@@ -79,12 +79,47 @@ this is solid.
 
 ## Exit criteria
 
-- [ ] Fresh clone, no local state carried over: documented setup command
+- [x] Fresh clone, no local state carried over: documented setup command
       brings the full stack up from nothing.
-- [ ] Single documented test command passes across backend + frontend.
-- [ ] README covers setup, every major architecture decision with its
+- [x] Single documented test command passes across backend + frontend.
+- [x] README covers setup, every major architecture decision with its
       rationale, known limitations, and the production-readiness section
       — a reviewer should be able to evaluate the project without asking
       a single clarifying question.
 - [ ] If bonus was attempted: it does not regress or complicate the core
       three-layer dashboard; it's additive only.
+
+---
+
+## What was built
+
+Docs live in `../docs/`, split so each answers one question:
+
+- `architecture.md` — the pieces, the data model, why two processes
+- `tech-spec.md` — schema, endpoints, config, error shapes
+- `sequence-diagrams.md` — upload, create, discovery, poll
+- `flowcharts.md` — tiling, geocode filtering, dashboard reads, status
+- `decisions/` — nine ADRs, each with what was rejected and what it cost
+
+The README carries setup, the sample data, the test commands, a short version
+of each decision linking into `decisions/`, known limitations, and the
+production-readiness section.
+
+Every figure quoted in the docs comes from a real run rather than an estimate.
+The exception was a request-count claim of "roughly 27 requests" for a capped
+market, which was wrong — recomputing through `tileKeysForBbox` gives 20 tiles,
+so 60 requests across three categories and about four minutes. Corrected
+everywhere before commit.
+
+### Still open
+
+Three of §5.1's named test targets are not covered:
+
+- A store sitting **exactly on the boundary line** — the `ST_Contains` versus
+  `ST_Covers` distinction is currently assumed rather than asserted.
+- **Wrong column order** in an uploaded CSV.
+- The frontend's **area-cap-disables-the-button** behaviour. The 30 sq km rule
+  is covered as pure geometry in `app/test/boundary.test.ts`, but no test
+  renders `SetupPage` and checks the button.
+
+The bonus store-matching layer (§5.3) was not attempted.
