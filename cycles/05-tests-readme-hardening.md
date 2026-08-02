@@ -79,12 +79,60 @@ this is solid.
 
 ## Exit criteria
 
-- [ ] Fresh clone, no local state carried over: documented setup command
+- [x] Fresh clone, no local state carried over: documented setup command
       brings the full stack up from nothing.
-- [ ] Single documented test command passes across backend + frontend.
-- [ ] README covers setup, every major architecture decision with its
+- [x] Single documented test command passes across backend + frontend.
+- [x] README covers setup, every major architecture decision with its
       rationale, known limitations, and the production-readiness section
       — a reviewer should be able to evaluate the project without asking
       a single clarifying question.
-- [ ] If bonus was attempted: it does not regress or complicate the core
+- [x] If bonus was attempted: it does not regress or complicate the core
       three-layer dashboard; it's additive only.
+
+---
+
+## What was built
+
+Docs live in `../docs/`, split so each answers one question:
+
+- `architecture.md` — the pieces, the data model, why two processes
+- `tech-spec.md` — schema, endpoints, config, error shapes
+- `sequence-diagrams.md` — upload, create, discovery, poll
+- `flowcharts.md` — tiling, geocode filtering, dashboard reads, status
+- `decisions/` — nine ADRs, each with what was rejected and what it cost
+
+The README carries setup, the sample data, the test commands, a short version
+of each decision linking into `decisions/`, known limitations, and the
+production-readiness section.
+
+Every figure quoted in the docs comes from a real run rather than an estimate.
+The exception was a request-count claim of "roughly 27 requests" for a capped
+market, which was wrong — recomputing through `tileKeysForBbox` gives 20 tiles,
+so 60 requests across three categories and about four minutes. Corrected
+everywhere before commit.
+
+### The three named targets that were missing
+
+All now covered.
+
+**A store exactly on the boundary line.** Measured rather than assumed:
+`ST_Contains` returns false for a point on the edge, `ST_Covers` returns true.
+So a store dead on the line reads as *outside*, at an edge and at a corner,
+and the worker's count agrees with the dashboard's query. Swapping
+`ST_Contains` for `ST_Covers` fails two of the three new tests, so they are
+pinning the semantic rather than restating it.
+
+**Wrong column order.** Columns are matched by header name, never position, so
+a reordered export imports identically — and a column missing from a reordered
+file is still named in the error. Getting this wrong would silently swap city
+into country with no error at all.
+
+**The area cap disabling the button.** `app/test/SetupPage.test.tsx` renders
+the real page with the map stubbed, walks the cascading dropdowns, and checks
+the button across the 30 sq km line in both directions. Removing `!overLimit`
+from the page's ready check fails two of them.
+
+Empty file, wrong data type in a cell, and missing required columns were
+already covered in `api/test/unit/portfolioCsv.test.ts`.
+
+The bonus store-matching layer (§5.3) was not attempted.

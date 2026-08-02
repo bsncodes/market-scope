@@ -217,6 +217,78 @@ describe('discovery pipeline', () => {
   });
 
   // The pre-filter bounds API cost; it must never be what decides in or out.
+  // The brief names this edge case explicitly, so it is asserted rather than
+  // assumed. PostGIS ST_Contains excludes the boundary itself — a point on the
+  // edge is not in the polygon's interior — where ST_Covers would include it.
+  // Every containment check in this system uses ST_Contains, so a store dead on
+  // the line reads as OUTSIDE, and the three places that measure it agree.
+  describe('a store exactly on the boundary line', () => {
+    const MID_LNG = (SMALL_BOUNDARY.minLng + SMALL_BOUNDARY.maxLng) / 2;
+    const NUDGE = 0.000001;
+
+    it('is classified outside, not inside', async () => {
+      overpassStub.respondWith(respondWithStoresInBbox([]));
+      await insertPortfolioStore({
+        name: 'On the south edge',
+        lat: SMALL_BOUNDARY.minLat,
+        lng: MID_LNG,
+      });
+      await insertPortfolioStore({
+        name: 'A hair inside',
+        lat: SMALL_BOUNDARY.minLat + NUDGE,
+        lng: MID_LNG,
+      });
+      await insertPortfolioStore({
+        name: 'A hair outside',
+        lat: SMALL_BOUNDARY.minLat - NUDGE,
+        lng: MID_LNG,
+      });
+
+      const marketId = await newMarket();
+      const outcome = await runDiscovery(marketId);
+
+      expect(outcome.inside).to.equal(1);
+      expect(outcome.outside).to.equal(2);
+      expect(await portfolioClassification(marketId)).to.deep.equal([
+        { store_name: 'A hair inside', is_inside: true },
+        { store_name: 'A hair outside', is_inside: false },
+        { store_name: 'On the south edge', is_inside: false },
+      ]);
+    });
+
+    it('holds at a corner too, where two edges meet', async () => {
+      overpassStub.respondWith(respondWithStoresInBbox([]));
+      await insertPortfolioStore({
+        name: 'South-west corner',
+        lat: SMALL_BOUNDARY.minLat,
+        lng: SMALL_BOUNDARY.minLng,
+      });
+
+      const marketId = await newMarket();
+      const outcome = await runDiscovery(marketId);
+
+      expect(outcome.inside).to.equal(0);
+      expect(outcome.outside).to.equal(1);
+    });
+
+    // The worker's count and the dashboard's query are separate SQL; if they
+    // ever disagreed the status screen would promise stores the map omits.
+    it('is excluded from the discovered count as well', async () => {
+      overpassStub.respondWith(
+        respondWithStoresInBbox([
+          { id: 1, lat: SMALL_BOUNDARY.minLat, lon: MID_LNG },
+          { id: 2, lat: SMALL_BOUNDARY.minLat + NUDGE, lon: MID_LNG },
+        ]),
+      );
+
+      const marketId = await newMarket();
+      const outcome = await runDiscovery(marketId);
+
+      expect(outcome.progress.discoveredInBoundary).to.equal(1);
+      expect(await countStoresInsideBoundary(marketId)).to.equal(1);
+    });
+  });
+
   describe('geocoding candidate pre-filter', () => {
     // Previously excluded: NULL OR NULL is NULL, so the row failed the WHERE.
     // No region text is not evidence of being somewhere else (§3.2).
