@@ -115,7 +115,7 @@ export async function countDiscoveredInMarket(
   return rows[0].count;
 }
 
-export interface GeocodingCandidate {
+export interface UnlocatedStore {
   id: number;
   address: string | null;
   city: string | null;
@@ -124,7 +124,10 @@ export interface GeocodingCandidate {
 }
 
 /**
- * Portfolio rows that might fall inside this market and still lack a location.
+ * Portfolio rows that still have no coordinates and might fall inside this
+ * market. The `location IS NULL` condition is load-bearing: a store whose CSV
+ * supplied latitude and longitude already had its point built at upload time,
+ * so it is never returned here and never costs a geocoding call.
  *
  * The text match is deliberately loose — case-insensitive, partial, and OR'd
  * across city/state/country. Its only job is to bound how many Nominatim calls
@@ -132,10 +135,10 @@ export interface GeocodingCandidate {
  * filter here would silently drop a store whose free-text city reads
  * "Bangalore" where the reference data says "Bengaluru" (§3.2).
  */
-export async function findGeocodingCandidates(
+export async function findUnlocatedStoresNear(
   marketId: number,
-): Promise<GeocodingCandidate[]> {
-  const { rows } = await pool.query<GeocodingCandidate>(
+): Promise<UnlocatedStore[]> {
+  const { rows } = await pool.query<UnlocatedStore>(
     `WITH target AS (
        SELECT c.name AS city, s.name AS state, co.name AS country
        FROM market m

@@ -8,7 +8,7 @@ import {
   classifyPortfolioForMarket,
   countDiscoveredInMarket,
   findFreshTileKeys,
-  findGeocodingCandidates,
+  findUnlocatedStoresNear,
   saveTileStores,
   setPortfolioLocation,
 } from '../repositories/discovery';
@@ -95,7 +95,7 @@ interface GeocodeSummary {
  * Resolves coordinates for the portfolio rows that still lack them.
  *
  * Every row here is already known to have `location IS NULL` — that is the
- * first condition in findGeocodingCandidates. A store whose CSV supplied
+ * first condition in findUnlocatedStoresNear. A store whose CSV supplied
  * latitude and longitude had its point built at upload time, so it is never
  * selected and never costs a Nominatim call. Widening that query would
  * silently start re-geocoding located stores at roughly a second each.
@@ -104,21 +104,21 @@ async function geocodePortfolioCandidates(
   marketId: number,
   progress: DiscoveryProgress,
 ): Promise<GeocodeSummary> {
-  const candidates = await findGeocodingCandidates(marketId);
+  const unlocatedStores = await findUnlocatedStoresNear(marketId);
   const summary: GeocodeSummary = {
-    candidates: candidates.length,
+    candidates: unlocatedStores.length,
     resolved: 0,
     unresolved: 0,
     failed: 0,
   };
 
-  for (const candidate of candidates) {
+  for (const store of unlocatedStores) {
     try {
       const point = await geocodeAddress([
-        candidate.address,
-        candidate.city,
-        candidate.state,
-        candidate.country,
+        store.address,
+        store.city,
+        store.state,
+        store.country,
       ]);
 
       // A null result means the address is genuinely unresolvable, which is a
@@ -131,12 +131,12 @@ async function geocodePortfolioCandidates(
         continue;
       }
 
-      await setPortfolioLocation(candidate.id, point.lat, point.lng);
+      await setPortfolioLocation(store.id, point.lat, point.lng);
       summary.resolved += 1;
     } catch (err) {
       summary.failed += 1;
       console.warn(
-        `geocoding failed for portfolio_store ${candidate.id}: ${(err as Error).message}`,
+        `geocoding failed for portfolio_store ${store.id}: ${(err as Error).message}`,
       );
     }
   }
