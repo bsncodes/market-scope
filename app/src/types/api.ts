@@ -120,3 +120,23 @@ export interface PortfolioResponse {
   outside_count: number;
   stores: PortfolioStore[];
 }
+
+export interface MarketSummary {
+  id: number;
+  status: MarketStatus;
+  error: string | null;
+  created_at: string;
+  last_discovered_at: string | null;
+  area_sq_km: number;
+  city: { id: number; name: string; state: string; country: string };
+  categories: Category[];
+  discovered_count: number | null;
+  portfolio_inside: number;
+  portfolio_outside: number;
+}
+
+export interface MarketListResponse {
+  count: number;
+  limit: number;
+  markets: MarketSummary[];
+}

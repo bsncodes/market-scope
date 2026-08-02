@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { DashboardPage } from './pages/DashboardPage';
+import { MarketsPage } from './pages/MarketsPage';
 import { SetupPage } from './pages/SetupPage';
 import { StatusPage } from './pages/StatusPage';
 import { UploadPage } from './pages/UploadPage';
@@ -12,6 +13,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<UploadPage />} />
         <Route path="/setup" element={<SetupPage />} />
+        <Route path="/markets" element={<MarketsPage />} />
         <Route path="/markets/:marketId/status" element={<StatusPage />} />
         <Route path="/markets/:marketId" element={<DashboardPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -49,7 +49,12 @@ describe('market routes', () => {
       expect(Date.now() - started).to.be.lessThan(1000);
     });
 
-    it('reports the queued status straight after creation', async () => {
+    // Deliberately not asserting 'queued' exactly: a worker running against
+    // the same Redis can legitimately claim the job between these two calls,
+    // and that race made the suite fail only on machines with a worker up. The
+    // claim being made is that creation does not finish the work, so any
+    // pre-completion state satisfies it.
+    it('reports a pre-completion status straight after creation', async () => {
       const created = await apiPostJson<{ market_id: number }>(
         '/api/markets',
         createBody(),
@@ -59,8 +64,10 @@ describe('market routes', () => {
       );
 
       expect(status.status).to.equal(200);
-      expect(status.body.status).to.equal('queued');
-      expect(status.body.progress).to.equal(null);
+      expect(status.body.status).to.be.oneOf(['queued', 'processing']);
+      if (status.body.status === 'queued') {
+        expect(status.body.progress).to.equal(null);
+      }
     });
 
     // Enforced server-side as well as in the UI: the cap bounds how much work

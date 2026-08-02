@@ -72,6 +72,113 @@ describe('dashboard read endpoints', () => {
   const newMarket = (boundary: Bbox = SMALL_BOUNDARY) =>
     createMarket({ cityId, categoryIds: [categoryId], boundary });
 
+  describe('GET /api/markets', () => {
+    interface ListBody {
+      count: number;
+      limit: number;
+      markets: {
+        id: number;
+        status: string;
+        area_sq_km: number;
+        city: { name: string };
+        categories: { id: number; label: string }[];
+        discovered_count: number | null;
+        portfolio_inside: number;
+        portfolio_outside: number;
+        created_at: string;
+      }[];
+    }
+
+    it('lists a created market with enough to decide whether to reopen it', async () => {
+      const marketId = await newMarket();
+
+      const res = await apiGet<ListBody>('/api/markets');
+
+      expect(res.status).to.equal(200);
+      const market = res.body.markets.find((m) => m.id === marketId);
+      expect(market, 'created market missing from the list').to.not.equal(
+        undefined,
+      );
+      expect(market?.status).to.equal('queued');
+      expect(market?.city.name).to.be.a('string');
+      expect(market?.categories).to.deep.equal([
+        { id: categoryId, label: 'Dashboard Supermarket' },
+      ]);
+      expect(market?.area_sq_km).to.be.greaterThan(0);
+    });
+
+    // Reopening the market you just made is the common case, so it has to be
+    // at the top rather than buried under everything older.
+    it('returns newest first', async () => {
+      const older = await newMarket();
+      const newer = await newMarket();
+
+      const ids = (await apiGet<ListBody>('/api/markets')).body.markets.map(
+        (m) => m.id,
+      );
+
+      expect(ids.indexOf(newer)).to.be.lessThan(ids.indexOf(older));
+    });
+
+    // Recounting inside the boundary for every row would make listing markets
+    // cost more the more markets exist, so it reads the stored progress.
+    it('carries the discovered count and portfolio split after a run', async () => {
+      overpassStub.respondWith(
+        respondWithStoresInBbox([
+          { id: 1, lat: 12.965, lon: 77.595, tags: { name: 'Found' } },
+        ]),
+      );
+      await insertPortfolioStore({ name: 'Inside', lat: 12.97, lng: 77.6 });
+      await insertPortfolioStore({ name: 'Outside', lat: 12.5, lng: 77.2 });
+
+      const marketId = await newMarket();
+      await runDiscovery(marketId);
+
+      const market = (await apiGet<ListBody>('/api/markets')).body.markets.find(
+        (m) => m.id === marketId,
+      );
+
+      expect(market?.status).to.equal('completed');
+      expect(market?.discovered_count).to.equal(1);
+      expect(market?.portfolio_inside).to.equal(1);
+      expect(market?.portfolio_outside).to.equal(1);
+    });
+
+    // A market that has never run has no progress to read, and reporting 0
+    // would claim discovery found nothing rather than that it has not run.
+    it('reports an unknown discovered count as null before a run', async () => {
+      await newMarket();
+
+      const market = (await apiGet<ListBody>('/api/markets')).body.markets[0];
+
+      expect(market.discovered_count).to.equal(null);
+      expect(market.portfolio_inside).to.equal(0);
+    });
+
+    it('returns an empty list rather than failing when nothing exists', async () => {
+      const res = await apiGet<ListBody>('/api/markets');
+      expect(res.status).to.equal(200);
+      expect(res.body.markets).to.deep.equal([]);
+    });
+
+    it('honours a limit', async () => {
+      await newMarket();
+      await newMarket();
+      await newMarket();
+
+      const res = await apiGet<ListBody>('/api/markets?limit=2');
+
+      expect(res.body.markets.length).to.equal(2);
+      expect(res.body.limit).to.equal(2);
+    });
+
+    it('rejects a limit outside the allowed range', async () => {
+      expect((await apiGet('/api/markets?limit=0')).status).to.equal(400);
+      expect((await apiGet('/api/markets?limit=500')).status).to.equal(400);
+      expect((await apiGet('/api/markets?limit=abc')).status).to.equal(400);
+    });
+  });
+
   describe('GET /api/markets/:id', () => {
     it('returns the boundary, city and categories a dashboard needs', async () => {
       const marketId = await newMarket();

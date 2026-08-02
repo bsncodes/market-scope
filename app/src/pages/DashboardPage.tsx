@@ -155,9 +155,14 @@ export function DashboardPage() {
             )}
           </ul>
 
-          <Link className="button" to="/setup">
-            Create another market
-          </Link>
+          <div className="actions">
+            <Link className="button button--primary" to="/setup">
+              New market
+            </Link>
+            <Link className="button" to="/markets">
+              All markets
+            </Link>
+          </div>
         </aside>
 
         <section className="dashboard__map">

@@ -34,3 +34,23 @@ export interface PortfolioStoreForMarket {
   lat: number;
   lng: number;
 }
+
+export interface MarketSummary {
+  id: number;
+  status: MarketStatus;
+  error: string | null;
+  created_at: Date;
+  last_discovered_at: Date | null;
+  area_sq_km: number;
+  city: {
+    id: number;
+    name: string;
+    state: string;
+    country: string;
+  };
+  categories: { id: number; label: string }[];
+  /** From the stored progress, so listing markets runs no spatial query. */
+  discovered_count: number | null;
+  portfolio_inside: number;
+  portfolio_outside: number;
+}

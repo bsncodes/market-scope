@@ -2,8 +2,70 @@ import { pool } from '../db';
 import type {
   DashboardStore,
   MarketDetail,
+  MarketSummary,
   PortfolioStoreForMarket,
 } from '../types/dashboard';
+
+/**
+ * Every market, newest first, with enough to decide which one to reopen.
+ *
+ * The discovered count is read from the stored progress rather than recounted:
+ * the worker already computed it, and running the boundary query once per
+ * market would make this list cost more the more markets exist (§3.6).
+ */
+export async function listMarkets(limit: number): Promise<MarketSummary[]> {
+  const { rows } = await pool.query(
+    `SELECT m.id, m.status, m.error, m.created_at, m.last_discovered_at,
+            m.progress,
+            ST_Area(m.boundary::geography) / 1000000 AS area_sq_km,
+            c.id AS city_id, c.name AS city_name,
+            s.name AS state_name, co.name AS country_name,
+            coalesce(
+              (SELECT json_agg(json_build_object('id', cat.id, 'label', cat.label)
+                               ORDER BY cat.label)
+               FROM market_category mc
+               JOIN category cat ON cat.id = mc.category_id
+               WHERE mc.market_id = m.id),
+              '[]'::json
+            ) AS categories,
+            coalesce(split.inside, 0) AS portfolio_inside,
+            coalesce(split.outside, 0) AS portfolio_outside
+     FROM market m
+     JOIN city c ON c.id = m.city_id
+     JOIN state s ON s.id = c.state_id
+     JOIN country co ON co.id = s.country_id
+     LEFT JOIN LATERAL (
+       SELECT count(*) FILTER (WHERE is_inside)::int AS inside,
+              count(*) FILTER (WHERE NOT is_inside)::int AS outside
+       FROM portfolio_store_market
+       WHERE market_id = m.id
+     ) split ON TRUE
+     -- id breaks the tie: two markets created in the same millisecond would
+     -- otherwise come back in an arbitrary order between calls.
+     ORDER BY m.created_at DESC, m.id DESC
+     LIMIT $1`,
+    [limit],
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    status: row.status,
+    error: row.error,
+    created_at: row.created_at,
+    last_discovered_at: row.last_discovered_at,
+    area_sq_km: row.area_sq_km,
+    city: {
+      id: row.city_id,
+      name: row.city_name,
+      state: row.state_name,
+      country: row.country_name,
+    },
+    categories: row.categories,
+    discovered_count: row.progress?.discoveredInBoundary ?? null,
+    portfolio_inside: row.portfolio_inside,
+    portfolio_outside: row.portfolio_outside,
+  }));
+}
 
 export async function findMarketDetail(
   marketId: number,

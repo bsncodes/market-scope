@@ -49,6 +49,33 @@ body {
   font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.02em;
+  color: inherit;
+  text-decoration: none;
+}
+
+.shell__nav {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.shell__navlink {
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.shell__navlink:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.shell__navlink.active {
+  background: var(--bg);
+  color: var(--primary);
+  font-weight: 600;
 }
 
 .shell__main {
@@ -93,6 +120,15 @@ body {
   border-radius: 50%;
   border: 1px solid var(--border);
   font-size: 11px;
+}
+
+.steps__link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.steps__link:hover {
+  text-decoration: underline;
 }
 
 .steps__item--current {
@@ -564,6 +600,66 @@ body {
 }
 
 .popup-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Markets list ------------------------------------------------------------ */
+
+.table-scroll {
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.markets {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.markets th,
+.markets td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.markets th {
+  background: var(--bg);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.markets tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.markets tbody tr:hover {
+  background: var(--bg);
+}
+
+.markets__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.markets__wrap {
+  white-space: normal;
+  min-width: 14ch;
+  max-width: 26ch;
+}
+
+.markets__sub {
+  margin-top: 2px;
+  max-width: 26ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--muted);
   font-size: 12px;
 }

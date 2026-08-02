@@ -8,6 +8,7 @@ import type {
   CreateMarketResponse,
   DiscoveredStoresResponse,
   MarketDetail,
+  MarketListResponse,
   MarketStatusResponse,
   PortfolioResponse,
   State,
@@ -36,6 +37,8 @@ export const createMarket = (input: {
   categoryIds: number[];
   boundary: Bounds;
 }) => postJson<CreateMarketResponse>('/markets', input);
+
+export const listMarkets = () => get<MarketListResponse>('/markets');
 
 export const getMarketStatus = (marketId: number) =>
   get<MarketStatusResponse>(`/markets/${marketId}/status`);

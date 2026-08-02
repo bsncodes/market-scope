@@ -7,6 +7,7 @@ import {
   findDiscoveredStores,
   findMarketDetail,
   findPortfolioForMarket,
+  listMarkets,
 } from '../repositories/dashboard';
 import {
   boundaryAreaSqKm,
@@ -69,6 +70,14 @@ marketRouter.get('/:marketId/status', async (req, res) => {
   });
 });
 
+const MAX_MARKETS_PER_PAGE = 100;
+
+marketRouter.get('/', async (req, res) => {
+  const limit = parseLimit(req.query.limit);
+  const markets = await listMarkets(limit);
+  res.json({ count: markets.length, limit, markets });
+});
+
 marketRouter.get('/:marketId', async (req, res) => {
   const marketId = requireId(req.params.marketId, 'marketId');
   const market = await findMarketDetail(marketId);
@@ -108,6 +117,23 @@ marketRouter.get('/:marketId/portfolio', async (req, res) => {
     stores,
   });
 });
+
+/**
+ * Bounded rather than unbounded: a demo accumulates markets quickly, and the
+ * list view only ever shows the recent ones. A rejected limit is better than
+ * silently clamping, so the caller learns their page size was ignored.
+ */
+function parseLimit(raw: unknown): number {
+  if (raw === undefined) return 25;
+
+  const limit = Number(raw);
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_MARKETS_PER_PAGE) {
+    throw requestValidationFailed(
+      `limit must be an integer between 1 and ${MAX_MARKETS_PER_PAGE}.`,
+    );
+  }
+  return limit;
+}
 
 /**
  * An unknown market and a market with nothing in it both return an empty

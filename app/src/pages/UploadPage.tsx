@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { ApiError } from '../api/client';
 import { uploadPortfolio } from '../api/endpoints';
 import { ErrorBox } from '../components/ErrorBox';
@@ -69,6 +69,9 @@ export function UploadPage() {
               Continue to market setup →
             </button>
           )}
+          <Link className="button" to="/markets">
+            View existing markets
+          </Link>
         </div>
 
         {error && <ErrorBox error={error} />}

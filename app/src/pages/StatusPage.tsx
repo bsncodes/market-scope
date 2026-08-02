@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import { getMarketStatus } from '../api/endpoints';
 import { ErrorBox } from '../components/ErrorBox';
@@ -122,8 +122,8 @@ export function StatusPage() {
           </div>
         )}
 
-        {failed && (
-          <div className="actions">
+        <div className="actions">
+          {failed && (
             <button
               type="button"
               className="button button--primary"
@@ -131,8 +131,11 @@ export function StatusPage() {
             >
               Try a different market
             </button>
-          </div>
-        )}
+          )}
+          <Link className="button" to="/markets">
+            All markets
+          </Link>
+        </div>
       </section>
     </Layout>
   );
