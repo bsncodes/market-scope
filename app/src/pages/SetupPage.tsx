@@ -54,11 +54,13 @@ export function SetupPage() {
     setBounds(bbox.data ? shrinkToLimit(fromCityBbox(bbox.data)) : null);
   }, [bbox.data]);
 
-  const settledBounds = useThrottledValue(bounds, AREA_THROTTLE_MS);
-  const area = useMemo(
-    () => (settledBounds ? areaSqKm(settledBounds) : 0),
-    [settledBounds],
-  );
+  // Falls back to the live bounds until the throttled copy catches up. Without
+  // that, the frame in which the rectangle first appears reads "0.00 sq km" —
+  // and a zero area is under the cap, so Create is briefly enabled on a number
+  // that is not the boundary's.
+  const throttled = useThrottledValue(bounds, AREA_THROTTLE_MS);
+  const measured = throttled ?? bounds;
+  const area = useMemo(() => (measured ? areaSqKm(measured) : 0), [measured]);
   const overLimit = area > MAX_AREA_SQ_KM;
 
   const ready =

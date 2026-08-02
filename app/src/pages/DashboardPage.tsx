@@ -9,6 +9,7 @@ import { ErrorBox } from '../components/ErrorBox';
 import { Layout } from '../components/Layout';
 import { MarketMap } from '../components/MarketMap';
 import { useRequest } from '../hooks/useRequest';
+import { categoryLabel } from '../lib/labels';
 
 export type LayerKey = 'discovered' | 'inside' | 'outside';
 
@@ -143,7 +144,7 @@ export function DashboardPage() {
                 <span className={`swatch swatch--${entry.layer}`} />
                 <span className="store-list__name">{entry.name}</span>
                 <span className="store-list__category">
-                  {entry.category ?? '—'}
+                  {categoryLabel(entry.category)}
                 </span>
               </li>
             ))}

@@ -5,6 +5,7 @@ import type { Bbox } from '../../src/types/discovery';
 import {
   ageTileFetches,
   anyCity,
+  clearDiscoveryFixtures,
   clearDiscoveryState,
   countStoresInsideBoundary,
   insertPortfolioStore,
@@ -41,7 +42,7 @@ describe('discovery pipeline', () => {
     overpassStub.reset();
   });
 
-  after(clearDiscoveryState);
+  after(clearDiscoveryFixtures);
 
   const newMarket = (boundary: Bbox = SMALL_BOUNDARY) =>
     createMarket({ cityId, categoryIds: [categoryId], boundary });

@@ -7,6 +7,7 @@ import {
   TileLayer,
 } from 'react-leaflet';
 import { boundsCentre } from '../lib/boundary';
+import { categoryLabel } from '../lib/labels';
 import type { LayerKey } from '../pages/DashboardPage';
 import type { Bounds, DiscoveredStore, PortfolioStore } from '../types/api';
 
@@ -89,7 +90,7 @@ export function MarketMap({ boundary, discovered, portfolio, visible }: Props) {
             <Popup>
               <strong>{store.name ?? 'Unnamed store'}</strong>
               <br />
-              {store.category ?? 'Uncategorised'}
+              {categoryLabel(store.category)}
               <br />
               <span className="popup-meta">OpenStreetMap {store.id}</span>
             </Popup>
@@ -110,7 +111,7 @@ export function MarketMap({ boundary, discovered, portfolio, visible }: Props) {
               <Popup>
                 <strong>{store.name}</strong>
                 <br />
-                {store.category ?? 'Uncategorised'}
+                {categoryLabel(store.category)}
                 <br />
                 <span className="popup-meta">
                   {store.is_inside ? 'Inside' : 'Outside'} the boundary

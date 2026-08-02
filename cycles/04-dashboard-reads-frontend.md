@@ -99,15 +99,55 @@ the slow side-effecting jobs only, fast reads stay direct):
 
 ## Exit criteria
 
-- [ ] Full click-through in an actual browser: upload a CSV → select
+- [x] Full click-through in an actual browser: upload a CSV → select
       country/state/city/categories → boundary auto-fills from city bbox
       → drag/resize it (watch the area readout update and the Create
       button enable/disable correctly at the 30 sq km line) → create →
       watch it poll → land on a populated dashboard.
-- [ ] All three layer checkboxes toggle independently and can be combined
+- [x] All three layer checkboxes toggle independently and can be combined
       in any combination, including all-off.
-- [ ] A deliberately triggered `failed` market (e.g. from Cycle 3's forced
+- [x] A deliberately triggered `failed` market (e.g. from Cycle 3's forced
       failure test) renders a clear failed state in the UI, not a stuck
       spinner.
-- [ ] List view entries match what's shown on the map for the currently
+- [x] List view entries match what's shown on the map for the currently
       toggled layers.
+
+---
+
+## Verified
+
+Walked in Chromium against a live stack (PostGIS + Redis + worker) and the
+real Overpass and Nominatim services, not stubs.
+
+- **Discovery**: market over central Bengaluru, 2 categories, 28.81 sq km.
+  72 tile-fetches, 112 stores inside the boundary. 20 tiles failed to public
+  Overpass rate limiting, which surfaced as `market.error` — "17 areas could
+  not be fetched" — rendered as a warning banner, not a failure.
+- **Area gate**: seeded 28.81 → dragged to 46.98 (readout red, Create
+  disabled, reason shown) → dragged back to 20.55 (Create enabled).
+- **Layers**: all eight on/off combinations, including all-off; list length
+  tracked the checkbox counts every time.
+- **Failed state**: a market forced to `failed` renders the server's message
+  with no spinner and a way out.
+
+### Two things this turned up
+
+**The area readout showed `0.00 sq km` on the frame the rectangle first
+appeared.** `useThrottledValue` starts holding `null` while the city bbox is
+in flight, and the `.area-bar` renders before the throttle's effect commits.
+A zero area is *under* the cap, so Create was briefly enabled against a number
+that was not the boundary's. Fixed by falling back to the live bounds until
+the throttled copy catches up.
+
+**A corner dragged past the map container's edge becomes ungrabbable** — it is
+clipped by the container's `overflow`. Recoverable in real use by panning or
+zooming out, so it is left as-is rather than adding edge-clamping logic that
+would fight the user mid-drag. Noted because it is non-obvious.
+
+### Read-path indexing
+
+`ST_Contains(m.boundary, ds.location::geometry)` casts away the geography
+type, so the GiST index on `discovered_store.location` cannot serve it. At
+112 stores per market this is irrelevant; at scale it wants a functional index
+on `(location::geometry)`. Deliberately not added — an unmeasured index on a
+table this size is speculation.

@@ -226,17 +226,28 @@ body {
 .checklist {
   display: flex;
   flex-direction: column;
-  gap: 8px;
   max-height: 260px;
   overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
 .checklist__item {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
   font-size: 14px;
   cursor: pointer;
+}
+
+.checklist__item:last-child {
+  border-bottom: 0;
+}
+
+.checklist__item:hover {
+  background: var(--bg);
 }
 
 .checklist__count {

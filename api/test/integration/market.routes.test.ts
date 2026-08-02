@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { ErrorCode } from '../../src/types/error';
 import {
   anyCityId,
+  clearDiscoveryFixtures,
   clearDiscoveryState,
   seedCategory,
   SMALL_BOUNDARY,
@@ -22,7 +23,7 @@ describe('market routes', () => {
   });
 
   beforeEach(clearDiscoveryState);
-  after(clearDiscoveryState);
+  after(clearDiscoveryFixtures);
 
   const createBody = (overrides: Record<string, unknown> = {}) => ({
     cityId,

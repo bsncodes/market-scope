@@ -4,6 +4,7 @@ import { createMarket } from '../../src/repositories/market';
 import type { Bbox } from '../../src/types/discovery';
 import {
   anyCity,
+  clearDiscoveryFixtures,
   clearDiscoveryState,
   insertPortfolioStore,
   seedCategory,
@@ -66,7 +67,7 @@ describe('dashboard read endpoints', () => {
     overpassStub.reset();
   });
 
-  after(clearDiscoveryState);
+  after(clearDiscoveryFixtures);
 
   const newMarket = (boundary: Bbox = SMALL_BOUNDARY) =>
     createMarket({ cityId, categoryIds: [categoryId], boundary });
