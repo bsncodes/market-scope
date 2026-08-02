@@ -9,6 +9,9 @@ const HEADER =
 
 const csv = (...lines: string[]) => Buffer.from([HEADER, ...lines].join('\n'));
 
+/** For the cases where the header itself is what is under test. */
+const withHeader = (...lines: string[]) => Buffer.from(lines.join('\n'));
+
 function expectRejection(buffer: Buffer, code: ErrorCode): AppError {
   try {
     parsePortfolioCsv(buffer);
@@ -60,6 +63,36 @@ describe('parsePortfolioCsv', () => {
         ),
       );
       expect(rows[0].store_name).to.equal('Alpha');
+    });
+
+    // Columns are matched by header name, never by position, so a file
+    // exported with a different column order imports identically. The brief
+    // names this case, and getting it wrong would silently swap fields —
+    // city into country, latitude into longitude — with no error at all.
+    it('accepts columns in any order', () => {
+      const reordered = withHeader(
+        'longitude,latitude,category,country,state,city,address,store_name',
+        '77.5946,12.9716,Supermarket,India,Karnataka,Bengaluru,12 MG Road,Alpha Mart',
+      );
+
+      const rows = parsePortfolioCsv(reordered);
+
+      expect(rows).to.have.length(1);
+      expect(rows[0].store_name).to.equal('Alpha Mart');
+      expect(rows[0].city).to.equal('Bengaluru');
+      expect(rows[0].country).to.equal('India');
+      expect(rows[0].address).to.equal('12 MG Road');
+      expect(rows[0].latitude).to.equal(12.9716);
+      expect(rows[0].longitude).to.equal(77.5946);
+    });
+
+    it('still names a missing column when the rest are reordered', () => {
+      const missingCity = withHeader(
+        'longitude,latitude,category,country,state,address,store_name',
+        '77.5946,12.9716,Supermarket,India,Karnataka,12 MG Road,Alpha Mart',
+      );
+
+      expect(() => parsePortfolioCsv(missingCity)).to.throw(/city/);
     });
 
     it('tolerates a UTF-8 BOM, which spreadsheet exports add', () => {

@@ -86,7 +86,7 @@ this is solid.
       rationale, known limitations, and the production-readiness section
       — a reviewer should be able to evaluate the project without asking
       a single clarifying question.
-- [ ] If bonus was attempted: it does not regress or complicate the core
+- [x] If bonus was attempted: it does not regress or complicate the core
       three-layer dashboard; it's additive only.
 
 ---
@@ -111,15 +111,28 @@ market, which was wrong — recomputing through `tileKeysForBbox` gives 20 tiles
 so 60 requests across three categories and about four minutes. Corrected
 everywhere before commit.
 
-### Still open
+### The three named targets that were missing
 
-Three of §5.1's named test targets are not covered:
+All now covered.
 
-- A store sitting **exactly on the boundary line** — the `ST_Contains` versus
-  `ST_Covers` distinction is currently assumed rather than asserted.
-- **Wrong column order** in an uploaded CSV.
-- The frontend's **area-cap-disables-the-button** behaviour. The 30 sq km rule
-  is covered as pure geometry in `app/test/boundary.test.ts`, but no test
-  renders `SetupPage` and checks the button.
+**A store exactly on the boundary line.** Measured rather than assumed:
+`ST_Contains` returns false for a point on the edge, `ST_Covers` returns true.
+So a store dead on the line reads as *outside*, at an edge and at a corner,
+and the worker's count agrees with the dashboard's query. Swapping
+`ST_Contains` for `ST_Covers` fails two of the three new tests, so they are
+pinning the semantic rather than restating it.
+
+**Wrong column order.** Columns are matched by header name, never position, so
+a reordered export imports identically — and a column missing from a reordered
+file is still named in the error. Getting this wrong would silently swap city
+into country with no error at all.
+
+**The area cap disabling the button.** `app/test/SetupPage.test.tsx` renders
+the real page with the map stubbed, walks the cascading dropdowns, and checks
+the button across the 30 sq km line in both directions. Removing `!overLimit`
+from the page's ready check fails two of them.
+
+Empty file, wrong data type in a cell, and missing required columns were
+already covered in `api/test/unit/portfolioCsv.test.ts`.
 
 The bonus store-matching layer (§5.3) was not attempted.
