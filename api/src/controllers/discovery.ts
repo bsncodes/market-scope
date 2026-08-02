@@ -91,6 +91,15 @@ interface GeocodeSummary {
   failed: number;
 }
 
+/**
+ * Resolves coordinates for the portfolio rows that still lack them.
+ *
+ * Every row here is already known to have `location IS NULL` — that is the
+ * first condition in findGeocodingCandidates. A store whose CSV supplied
+ * latitude and longitude had its point built at upload time, so it is never
+ * selected and never costs a Nominatim call. Widening that query would
+ * silently start re-geocoding located stores at roughly a second each.
+ */
 async function geocodePortfolioCandidates(
   marketId: number,
   progress: DiscoveryProgress,
