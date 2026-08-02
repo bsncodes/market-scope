@@ -26,10 +26,19 @@ export async function seedCategory(
 }
 
 export async function anyCityId(): Promise<number> {
-  const { rows } = await pool.query<{ id: number }>(
-    'SELECT id FROM city ORDER BY id LIMIT 1',
+  return (await anyCity()).id;
+}
+
+/**
+ * The name matters as well as the id: the geocoding pre-filter matches a
+ * portfolio row's free-text city against the market's, so a test that wants a
+ * store to be considered a candidate has to use a city that actually matches.
+ */
+export async function anyCity(): Promise<{ id: number; name: string }> {
+  const { rows } = await pool.query<{ id: number; name: string }>(
+    'SELECT id, name FROM city ORDER BY id LIMIT 1',
   );
-  return rows[0].id;
+  return rows[0];
 }
 
 export async function insertPortfolioStore(store: {

@@ -4,7 +4,7 @@ import { createMarket, findMarketStatus } from '../../src/repositories/market';
 import type { Bbox } from '../../src/types/discovery';
 import {
   ageTileFetches,
-  anyCityId,
+  anyCity,
   clearDiscoveryState,
   countStoresInsideBoundary,
   insertPortfolioStore,
@@ -21,10 +21,11 @@ import {
 
 describe('discovery pipeline', () => {
   let cityId: number;
+  let cityName: string;
   let categoryId: number;
 
   before(async () => {
-    cityId = await anyCityId();
+    ({ id: cityId, name: cityName } = await anyCity());
     categoryId = await seedCategory('Test Supermarket', ['shop=supermarket']);
   });
 
@@ -191,16 +192,62 @@ describe('discovery pipeline', () => {
 
     it('leaves an ungeocodable store unclassified rather than guessing', async () => {
       overpassStub.respondWith(respondWithStoresInBbox([]));
+      // City must match the market's, or the pre-filter excludes the row and
+      // the test would pass without exercising geocoding at all.
       await insertPortfolioStore({
         name: 'No Location',
         address: 'somewhere unresolvable',
-        city: 'Nowhere',
+        city: cityName,
       });
 
       const marketId = await newMarket();
-      await runDiscovery(marketId);
+      const outcome = await runDiscovery(marketId);
 
+      expect(outcome.progress.geocodeCandidates).to.be.greaterThan(0);
       expect(await portfolioClassification(marketId)).to.deep.equal([]);
+    });
+  });
+
+  // The pre-filter bounds API cost; it must never be what decides in or out.
+  describe('geocoding candidate pre-filter', () => {
+    // Previously excluded: NULL OR NULL is NULL, so the row failed the WHERE.
+    // No region text is not evidence of being somewhere else (§3.2).
+    it('includes a store with no city, state or country at all', async () => {
+      overpassStub.respondWith(respondWithStoresInBbox([]));
+      await insertPortfolioStore({
+        name: 'No Region Fields',
+        address: '12 MG Road',
+      });
+
+      const outcome = await runDiscovery(await newMarket());
+      expect(outcome.progress.geocodeCandidates).to.equal(1);
+    });
+
+    it('includes a store whose city differs from the reference spelling', async () => {
+      overpassStub.respondWith(respondWithStoresInBbox([]));
+      await insertPortfolioStore({
+        name: 'Loose Match',
+        address: '12 MG Road',
+        city: cityName.toUpperCase(),
+      });
+
+      const outcome = await runDiscovery(await newMarket());
+      expect(outcome.progress.geocodeCandidates).to.equal(1);
+    });
+
+    // Already located rows have nothing to geocode.
+    it('excludes a store that already has coordinates', async () => {
+      overpassStub.respondWith(respondWithStoresInBbox([]));
+      await insertPortfolioStore({
+        name: 'Already Located',
+        address: '12 MG Road',
+        city: cityName,
+        lat: 12.97,
+        lng: 77.6,
+      });
+
+      const outcome = await runDiscovery(await newMarket());
+      expect(outcome.progress.geocodeCandidates).to.equal(0);
     });
   });
 
@@ -360,7 +407,7 @@ describe('discovery pipeline', () => {
       await insertPortfolioStore({
         name: 'Unresolvable',
         address: 'nowhere at all',
-        city: 'Nowhere',
+        city: cityName,
       });
 
       const marketId = await newMarket();
