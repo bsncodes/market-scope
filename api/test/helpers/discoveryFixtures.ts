@@ -137,29 +137,3 @@ export const SMALL_BOUNDARY: Bbox = {
   maxLat: 12.98,
   maxLng: 77.61,
 };
-
-/**
- * A point exactly `metres` east of the given one, measured on the spheroid.
- *
- * Computed by PostGIS rather than by converting metres to degrees here: the
- * conversion depends on latitude, and a test for a 150 m threshold that is
- * itself only accurate to a few metres proves nothing about the boundary.
- */
-export async function pointAtDistance(
-  lat: number,
-  lng: number,
-  metres: number,
-): Promise<{ lat: number; lng: number }> {
-  const { rows } = await pool.query<{ lat: number; lng: number }>(
-    `SELECT ST_Y(p::geometry) AS lat, ST_X(p::geometry) AS lng
-     FROM (
-       SELECT ST_Project(
-         ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
-         $3::double precision,
-         radians(90)
-       ) AS p
-     ) t`,
-    [lat, lng, metres],
-  );
-  return rows[0];
-}

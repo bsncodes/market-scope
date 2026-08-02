@@ -136,18 +136,12 @@ export interface PortfolioStore {
   is_inside: boolean;
   lat: number;
   lng: number;
-  /** OpenStreetMap already has a store of a selected category within the radius. */
-  matched: boolean;
-  match_distance_m: number | null;
-  matched_osm_id: string | null;
 }
 
 export interface PortfolioResponse {
   market_id: number;
-  match_radius_m: number;
   inside_count: number;
   outside_count: number;
-  matched_count: number;
   stores: PortfolioStore[];
 }
 

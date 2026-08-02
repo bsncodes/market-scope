@@ -135,24 +135,4 @@ from the page's ready check fails two of them.
 Empty file, wrong data type in a cell, and missing required columns were
 already covered in `api/test/unit/portfolioCsv.test.ts`.
 
-### The bonus (§5.3)
-
-Built, after the core was clean and merged.
-
-`ST_DWithin` at 150 m against the discovered stores of the market's own
-categories, computed on read via a `LEFT JOIN LATERAL` that stops at the
-closest hit. Surfaced as a fourth toggleable layer.
-
-The radius behaviour was measured rather than assumed, the same way the
-boundary-line case was: `ST_DWithin` is inclusive, so a store at exactly 150 m
-matches. Fixtures are positioned by `ST_Project` so the distances are exact on
-the spheroid rather than accurate to whatever a degrees-to-metres conversion
-gets away with.
-
-The layering question needed a decision. A matched store is still inside or
-outside, so it belongs to two layers and would otherwise draw twice. It
-renders once, styled as matched while that layer is on, falling back to
-inside/outside when it is off, and disappearing only when both are off — which
-keeps all four checkboxes independent without double-drawing anything.
-
-It is additive: nothing about the original three layers changed.
+The bonus store-matching layer (§5.3) was not attempted.

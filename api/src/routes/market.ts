@@ -105,20 +105,15 @@ marketRouter.get('/:marketId/discovered-stores', async (req, res) => {
 
 marketRouter.get('/:marketId/portfolio', async (req, res) => {
   const marketId = await requireExistingMarket(req.params.marketId);
-  const stores = await findPortfolioForMarket(
-    marketId,
-    config.storeMatchRadiusM,
-  );
+  const stores = await findPortfolioForMarket(marketId);
 
-  // Every side comes back in one payload with the flags intact; the frontend
-  // toggles them as independent layers, and the counts are what the dashboard
-  // header shows without it having to filter three times.
+  // Both sides come back in one payload with the flag intact; the frontend
+  // toggles them as two independent layers, and the counts are what the
+  // dashboard header shows without it having to filter twice.
   res.json({
     market_id: marketId,
-    match_radius_m: config.storeMatchRadiusM,
     inside_count: stores.filter((store) => store.is_inside).length,
     outside_count: stores.filter((store) => !store.is_inside).length,
-    matched_count: stores.filter((store) => store.matched).length,
     stores,
   });
 });

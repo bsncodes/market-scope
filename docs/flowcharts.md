@@ -96,15 +96,13 @@ flowchart TD
     E --> F["Stores"]
 
     G["GET /markets/:id/portfolio"] --> H["portfolio_store_market for this market"]
-    H --> H2["LATERAL: nearest discovered store<br/>within 150 m, selected categories only"]
-    H2 --> I["is_inside, matched, distance<br/>on every row"]
+    H --> I["is_inside flag on every row"]
 
     F --> J{"Layer toggles"}
     I --> J
     J -->|"Discovered"| K["Blue circles"]
     J -->|"Portfolio inside"| L["Green, larger"]
     J -->|"Portfolio outside"| M["Amber, larger"]
-    J -->|"Already on OSM"| M2["Violet, heaviest stroke"]
     J --> N["List view, filtered to<br/>whichever layers are on"]
 ```
 
@@ -121,12 +119,6 @@ the read path free of any knowledge of how the cache is organised.
 `DISTINCT ON` matters because tiles overlap at their edges and Overpass can
 return the same element in two adjacent queries. Without it a store on a tile
 boundary is counted twice.
-
-The match on the right-hand side is a `LEFT JOIN LATERAL` so the radius filter
-runs per portfolio store and stops at the closest hit. A matched store belongs
-to two layers at once — it is still inside or outside the boundary — so it
-renders once, styled as matched while that layer is on and falling back to its
-inside/outside styling when it is off. It disappears only when both are off.
 
 ## Market status
 

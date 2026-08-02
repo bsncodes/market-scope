@@ -24,7 +24,6 @@ are the documents for reading the code rather than using it.
 | [0007](decisions/0007-overpass-pacing.md)                    | Pacing Overpass, measured rather than assumed      |
 | [0008](decisions/0008-reclassify-markets-on-upload.md)       | Re-uploading a portfolio reclassifies every market |
 | [0009](decisions/0009-frontend-state.md)                     | No state library on the frontend                   |
-| [0010](decisions/0010-store-matching.md)                     | Matching portfolio stores against discovered ones  |
 
 Each record states what was decided, why, what was rejected, and what the
 choice costs. The last section is the one worth reading — a decision without a

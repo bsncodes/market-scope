@@ -148,19 +148,12 @@ export async function findDiscoveredStores(
 }
 
 /**
- * Both sides of the split in one query, each row carrying whether OSM already
- * knows about that shop. The frontend renders inside, outside and matched as
- * separate toggleable layers, but fetching them separately would mean three
- * round trips for one classification that is already computed.
- *
- * The match is computed here rather than stored. It depends on the discovered
- * stores, which change whenever a tile is re-fetched, so a stored flag would
- * need invalidating on every discovery run — and the join is cheap next to
- * the spatial work the rest of the page already does.
+ * Both sides of the split in one query. The frontend renders inside and
+ * outside as separate toggleable layers, but fetching them separately would
+ * mean two round trips for one classification that is already computed.
  */
 export async function findPortfolioForMarket(
   marketId: number,
-  matchRadiusM: number,
 ): Promise<PortfolioStoreForMarket[]> {
   const { rows } = await pool.query<PortfolioStoreForMarket>(
     `SELECT ps.id,
@@ -169,30 +162,12 @@ export async function findPortfolioForMarket(
             ps.address,
             psm.is_inside,
             ST_Y(ps.location::geometry) AS lat,
-            ST_X(ps.location::geometry) AS lng,
-            nearest.osm_element_id IS NOT NULL AS matched,
-            nearest.distance_m AS match_distance_m,
-            nearest.osm_element_id AS matched_osm_id
+            ST_X(ps.location::geometry) AS lng
      FROM portfolio_store_market psm
      JOIN portfolio_store ps ON ps.id = psm.portfolio_store_id
-     -- LATERAL so the radius filter runs per portfolio store and stops at the
-     -- closest hit, rather than materialising every pair inside the radius.
-     LEFT JOIN LATERAL (
-       SELECT ds.osm_element_id,
-              round(ST_Distance(ps.location, ds.location)::numeric, 1) AS distance_m
-       FROM discovered_store ds
-       JOIN tile_fetch tf ON tf.id = ds.tile_fetch_id
-       JOIN market_category mc
-         ON mc.market_id = psm.market_id AND mc.category_id = tf.category_id
-       -- Metres, because both columns are geography. On geometry this second
-       -- argument would be degrees, and 150 of those is most of a hemisphere.
-       WHERE ST_DWithin(ps.location, ds.location, $2)
-       ORDER BY ST_Distance(ps.location, ds.location)
-       LIMIT 1
-     ) nearest ON TRUE
      WHERE psm.market_id = $1
      ORDER BY ps.store_name`,
-    [marketId, matchRadiusM],
+    [marketId],
   );
   return rows;
 }

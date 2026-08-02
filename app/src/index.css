@@ -16,7 +16,6 @@
   --discovered: #60a5fa;
   --inside: #10b981;
   --outside: #f59e0b;
-  --matched: #a78bfa;
 
   --radius: 8px;
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -555,10 +554,6 @@ body {
   background: var(--outside);
 }
 
-.swatch--matched {
-  background: var(--matched);
-}
-
 .store-list {
   margin: 0;
   padding: 0;
@@ -709,11 +704,6 @@ body {
 .store-list__tag--discovered {
   border-color: var(--discovered);
   color: var(--primary);
-}
-
-.store-list__tag--matched {
-  border-color: var(--matched);
-  color: #6d28d9;
 }
 
 /* Keyboard route to the boundary the map drags with a pointer. */
