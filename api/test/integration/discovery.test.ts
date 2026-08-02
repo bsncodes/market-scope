@@ -249,6 +249,51 @@ describe('discovery pipeline', () => {
       const outcome = await runDiscovery(await newMarket());
       expect(outcome.progress.geocodeCandidates).to.equal(0);
     });
+
+    // The bug this replaced: country was an OR term, and in a single-country
+    // portfolio every row shares it, so the filter selected everything and
+    // bounded nothing.
+    it('excludes a store elsewhere in the same country', async () => {
+      overpassStub.respondWith(respondWithStoresInBbox([]));
+      await insertPortfolioStore({
+        name: 'Far Away Same Country',
+        address: '1 Some Street',
+        city: 'Zzz Distant City',
+        state: 'Zzz Distant State',
+        country: 'India',
+      });
+
+      const outcome = await runDiscovery(await newMarket());
+      expect(outcome.progress.geocodeCandidates).to.equal(0);
+    });
+
+    // Country only ever excludes: a different one is real evidence the store
+    // is not here, even when the locality text happens to collide.
+    it('excludes a store in a different country', async () => {
+      overpassStub.respondWith(respondWithStoresInBbox([]));
+      await insertPortfolioStore({
+        name: 'Wrong Country',
+        address: '1 Some Street',
+        city: cityName,
+        country: 'Canada',
+      });
+
+      const outcome = await runDiscovery(await newMarket());
+      expect(outcome.progress.geocodeCandidates).to.equal(0);
+    });
+
+    it('still includes a matching city within the same country', async () => {
+      overpassStub.respondWith(respondWithStoresInBbox([]));
+      await insertPortfolioStore({
+        name: 'Right Here',
+        address: '12 MG Road',
+        city: cityName,
+        country: 'India',
+      });
+
+      const outcome = await runDiscovery(await newMarket());
+      expect(outcome.progress.geocodeCandidates).to.equal(1);
+    });
   });
 
   // A tile failure is isolated by design and never reaches BullMQ, so if it is

@@ -1,4 +1,5 @@
 import { config } from '../config';
+import { ProgressReporter } from '../helpers/progressReporter';
 import {
   tileKeyToBbox,
   tileKeysForBbox,
@@ -19,14 +20,9 @@ import {
   setMarketProgress,
   setMarketStatus,
 } from '../repositories/market';
-import {
-  emptyProgress,
-  type Bbox,
-  type DiscoveryProgress,
-  type TileFailure,
-} from '../types/discovery';
-import { fetchStoresInBbox } from './overpass';
+import type { DiscoveryProgress, TileFailure } from '../types/discovery';
 import { geocodeAddress } from './geocode';
+import { fetchStoresInBbox } from './overpass';
 
 export interface DiscoveryOutcome {
   progress: DiscoveryProgress;
@@ -35,9 +31,19 @@ export interface DiscoveryOutcome {
   outside: number;
 }
 
+interface TileResult {
+  failures: TileFailure[];
+  /** Returned so the caller need not re-derive what this stage already computed. */
+  tileKeys: string[];
+}
+
 /**
- * The whole pipeline for one market: geocode what the boundary might contain,
- * fetch whichever tiles are missing or stale, then classify.
+ * The whole pipeline for one market.
+ *
+ * Tiles run before geocoding deliberately. Discovery has no dependency on
+ * portfolio coordinates, and finishing it first means the dashboard's
+ * discovered-stores layer is ready in seconds rather than after a portfolio
+ * that may take minutes to locate.
  *
  * On a completed run this writes the terminal status itself. On a throw it
  * deliberately does not: only the worker knows whether attempts remain, and
@@ -48,19 +54,26 @@ export async function runDiscovery(
 ): Promise<DiscoveryOutcome> {
   await setMarketStatus(marketId, 'processing');
 
-  const progress = emptyProgress();
+  const reporter = new ProgressReporter(
+    marketId,
+    setMarketProgress,
+    config.progressWriteIntervalMs,
+  );
 
-  const geocodeSummary = await geocodePortfolioCandidates(marketId, progress);
-  const failures = await discoverTiles(marketId, progress);
+  const tiles = await discoverTiles(marketId, reporter);
+  await geocodeUnlocatedStores(marketId, reporter);
   const { inside, outside } = await classifyPortfolioForMarket(marketId);
 
-  progress.discoveredInBoundary = await countDiscoveredInMarket(
-    marketId,
-    tileKeysForMarketBounds(await marketBoundaryBbox(marketId)),
-  );
-  await setMarketProgress(marketId, progress);
+  reporter.set({
+    discoveredInBoundary: await countDiscoveredInMarket(
+      marketId,
+      tiles.tileKeys,
+    ),
+  });
+  await reporter.flush();
 
-  const error = describeShortfall(failures, geocodeSummary);
+  const progress = reporter.snapshot();
+  const error = describeShortfall(tiles.failures, progress);
 
   // Partial failure still completes: whatever succeeded is persisted, with the
   // shortfall recorded so the dashboard can say which areas are missing rather
@@ -81,14 +94,64 @@ export async function runDiscovery(
     await setMarketCompleted(marketId, error);
   }
 
-  return { progress, failures, inside, outside };
+  return { progress, failures: tiles.failures, inside, outside };
 }
 
-interface GeocodeSummary {
-  candidates: number;
-  resolved: number;
-  unresolved: number;
-  failed: number;
+async function discoverTiles(
+  marketId: number,
+  reporter: ProgressReporter,
+): Promise<TileResult> {
+  const step = tileStepDegrees(config.tileSizeKm);
+  const bounds = await marketBoundaryBbox(marketId);
+  const tileKeys = tileKeysForBbox(bounds, step);
+  const categories = await marketCategoryTags(marketId);
+
+  reporter.set({ tilesTotal: tileKeys.length * categories.length });
+  await reporter.flush();
+
+  const failures: TileFailure[] = [];
+
+  for (const category of categories) {
+    // Freshness is checked per category in one query rather than per tile:
+    // a stale row counts as missing, which is what keeps correctness at read
+    // time instead of depending on a cleanup job (§3.5).
+    const fresh = await findFreshTileKeys(
+      tileKeys,
+      category.categoryId,
+      config.discoveryFreshnessDays,
+    );
+
+    for (const tileKey of tileKeys) {
+      if (fresh.has(tileKey)) {
+        reporter.increment('tilesReused');
+        continue;
+      }
+
+      try {
+        const stores = await fetchStoresInBbox(
+          tileKeyToBbox(tileKey, step),
+          category.tags,
+        );
+        await saveTileStores(tileKey, category.categoryId, stores);
+        reporter.increment('tilesFetched');
+      } catch (err) {
+        reporter.increment('tilesFailed');
+        failures.push({
+          tileKey,
+          categoryId: category.categoryId,
+          reason: (err as Error).message,
+        });
+      }
+
+      await reporter.flushIfDue();
+    }
+
+    // Always land a write on a category boundary, so a market covering a
+    // single category still reports something before it finishes.
+    await reporter.flush();
+  }
+
+  return { failures, tileKeys };
 }
 
 /**
@@ -100,17 +163,13 @@ interface GeocodeSummary {
  * selected and never costs a Nominatim call. Widening that query would
  * silently start re-geocoding located stores at roughly a second each.
  */
-async function geocodePortfolioCandidates(
+async function geocodeUnlocatedStores(
   marketId: number,
-  progress: DiscoveryProgress,
-): Promise<GeocodeSummary> {
+  reporter: ProgressReporter,
+): Promise<void> {
   const unlocatedStores = await findUnlocatedStoresNear(marketId);
-  const summary: GeocodeSummary = {
-    candidates: unlocatedStores.length,
-    resolved: 0,
-    unresolved: 0,
-    failed: 0,
-  };
+  reporter.set({ geocodeCandidates: unlocatedStores.length });
+  await reporter.flush();
 
   for (const store of unlocatedStores) {
     try {
@@ -127,25 +186,23 @@ async function geocodePortfolioCandidates(
       // separately so an outage is not mistaken for a portfolio that simply
       // does not reach this market.
       if (!point) {
-        summary.unresolved += 1;
+        reporter.increment('geocodeUnresolved');
         continue;
       }
 
       await setPortfolioLocation(store.id, point.lat, point.lng);
-      summary.resolved += 1;
+      reporter.increment('geocodeResolved');
     } catch (err) {
-      summary.failed += 1;
+      reporter.increment('geocodeFailed');
       console.warn(
         `geocoding failed for portfolio_store ${store.id}: ${(err as Error).message}`,
       );
     }
+
+    await reporter.flushIfDue();
   }
 
-  progress.geocodeCandidates = summary.candidates;
-  progress.geocodeResolved = summary.resolved;
-  progress.geocodeUnresolved = summary.unresolved;
-  progress.geocodeFailed = summary.failed;
-  return summary;
+  await reporter.flush();
 }
 
 /**
@@ -154,98 +211,27 @@ async function geocodePortfolioCandidates(
  */
 function describeShortfall(
   failures: TileFailure[],
-  geocoding: GeocodeSummary,
+  progress: DiscoveryProgress,
 ): string | null {
   const parts: string[] = [];
 
   if (failures.length > 0) {
-    const tiles = new Set(failures.map((f) => f.tileKey)).size;
+    const areas = new Set(failures.map((f) => f.tileKey)).size;
     parts.push(
-      `${tiles} area${tiles > 1 ? 's' : ''} could not be fetched, so some stores may be missing.`,
+      `${areas} area${areas > 1 ? 's' : ''} could not be fetched, so some stores may be missing.`,
     );
   }
 
   // Every candidate erroring points at the geocoder, not the addresses.
-  if (geocoding.failed > 0 && geocoding.resolved === 0) {
+  if (progress.geocodeFailed > 0 && progress.geocodeResolved === 0) {
     parts.push(
       'The geocoding service was unavailable, so stores without coordinates could not be placed.',
     );
-  } else if (geocoding.failed > 0) {
+  } else if (progress.geocodeFailed > 0) {
     parts.push(
-      `${geocoding.failed} store${geocoding.failed > 1 ? 's' : ''} could not be geocoded.`,
+      `${progress.geocodeFailed} store${progress.geocodeFailed > 1 ? 's' : ''} could not be geocoded.`,
     );
   }
 
   return parts.length > 0 ? parts.join(' ') : null;
-}
-
-export function tileKeysForMarketBounds(bounds: Bbox): string[] {
-  return tileKeysForBbox(bounds, tileStepDegrees(config.tileSizeKm));
-}
-
-async function discoverTiles(
-  marketId: number,
-  progress: DiscoveryProgress,
-): Promise<TileFailure[]> {
-  const step = tileStepDegrees(config.tileSizeKm);
-  const bounds = await marketBoundaryBbox(marketId);
-  const tileKeys = tileKeysForBbox(bounds, step);
-  const categories = await marketCategoryTags(marketId);
-
-  progress.tilesTotal = tileKeys.length * categories.length;
-  const failures: TileFailure[] = [];
-  await setMarketProgress(marketId, progress);
-
-  // Progress is written on a timer rather than per tile. A market can cover
-  // hundreds of tile-category pairs, and the poll loop reads every ~10s, so a
-  // write per tile is chatty without telling anyone anything sooner.
-  let lastWriteAt = Date.now();
-  const flushIfDue = async () => {
-    if (Date.now() - lastWriteAt < config.progressWriteIntervalMs) return;
-    lastWriteAt = Date.now();
-    await setMarketProgress(marketId, progress);
-  };
-
-  for (const category of categories) {
-    // Freshness is checked per category in one query rather than per tile:
-    // a stale row counts as missing, which is what keeps correctness at read
-    // time instead of depending on a cleanup job (§3.5).
-    const fresh = await findFreshTileKeys(
-      tileKeys,
-      category.categoryId,
-      config.discoveryFreshnessDays,
-    );
-
-    for (const tileKey of tileKeys) {
-      if (fresh.has(tileKey)) {
-        progress.tilesReused += 1;
-        continue;
-      }
-
-      try {
-        const stores = await fetchStoresInBbox(
-          tileKeyToBbox(tileKey, step),
-          category.tags,
-        );
-        await saveTileStores(tileKey, category.categoryId, stores);
-        progress.tilesFetched += 1;
-      } catch (err) {
-        progress.tilesFailed += 1;
-        failures.push({
-          tileKey,
-          categoryId: category.categoryId,
-          reason: (err as Error).message,
-        });
-      }
-
-      await flushIfDue();
-    }
-
-    // Always land a write on a category boundary, so a long single-category
-    // market still reports something.
-    await setMarketProgress(marketId, progress);
-    lastWriteAt = Date.now();
-  }
-
-  return failures;
 }

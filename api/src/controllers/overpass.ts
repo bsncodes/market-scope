@@ -49,7 +49,9 @@ export async function fetchStoresInBbox(
 ): Promise<DiscoveredStore[]> {
   const attempts = Math.max(1, config.overpassTileAttempts);
 
-  for (let attempt = 1; ; attempt += 1) {
+  // Bounded in the header rather than only by a throw inside the catch, so the
+  // loop is verifiably finite against a rate-limited service at a glance.
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
       return await fetchOnce(bbox, tags);
     } catch (err) {
@@ -58,13 +60,18 @@ export async function fetchStoresInBbox(
           ? err
           : new OverpassError(String(err), false);
 
-      if (!failure.retryable || attempt >= attempts) throw failure;
+      if (!failure.retryable || attempt === attempts) throw failure;
 
       // The limiter already paces requests; this backs off further so a
       // struggling server is not asked again immediately.
       await sleep(config.overpassTileRetryDelayMs * attempt);
     }
   }
+
+  // Unreachable: the final attempt always returns or throws above. Present
+  // because a bounded loop header cannot prove that to the compiler, which is
+  // the trade for making the bound checkable by a reader.
+  throw new OverpassError('Overpass retries exhausted', false);
 }
 
 async function fetchOnce(

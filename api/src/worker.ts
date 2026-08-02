@@ -30,10 +30,13 @@ export function createDiscoveryWorker() {
     // what happened, and a shutdown right after could otherwise drop it,
     // leaving the market stuck in `processing` forever.
     try {
+      // The job id is echoed so a user reporting "my market failed" can be
+      // tied back to the console.error above. Everything else stays generic:
+      // an upstream message could carry connection detail or SQL fragments.
       await setMarketStatus(
         job.data.marketId,
         'failed',
-        'Discovery could not be completed. Please try creating the market again.',
+        `Discovery could not be completed (ref ${job.id}). Please try creating the market again.`,
       );
     } catch (statusErr) {
       console.error(

@@ -151,15 +151,19 @@ export async function findUnlocatedStoresNear(
      FROM portfolio_store ps, target t
      WHERE ps.location IS NULL
        AND ps.address IS NOT NULL
+       -- Country cannot confer candidacy: in a single-country portfolio every
+       -- row shares it, so an OR on country matched everything and the filter
+       -- bounded nothing. It only excludes — a country that is present and
+       -- different is real evidence the store is elsewhere.
+       AND (ps.country IS NULL OR ps.country ILIKE '%' || t.country || '%')
        AND (
-         -- No region text at all is not evidence of being elsewhere, so the
+         -- No locality text at all is not evidence of being elsewhere, so the
          -- row stays a candidate. Excluding it would silently drop a store
          -- that ST_Contains might well place inside the boundary (§3.2).
-         (ps.city IS NULL AND ps.state IS NULL AND ps.country IS NULL)
+         (ps.city IS NULL AND ps.state IS NULL)
          OR ps.city ILIKE '%' || t.city || '%'
          OR t.city ILIKE '%' || ps.city || '%'
          OR ps.state ILIKE '%' || t.state || '%'
-         OR ps.country ILIKE '%' || t.country || '%'
        )`,
     [marketId],
   );
