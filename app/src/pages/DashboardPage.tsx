@@ -13,11 +13,20 @@ import { categoryLabel } from '../lib/labels';
 
 export type LayerKey = 'discovered' | 'inside' | 'outside';
 
-const LAYERS: { key: LayerKey; label: string; swatch: string }[] = [
-  { key: 'discovered', label: 'Discovered stores', swatch: 'discovered' },
-  { key: 'inside', label: 'Portfolio inside boundary', swatch: 'inside' },
-  { key: 'outside', label: 'Portfolio outside boundary', swatch: 'outside' },
+const LAYERS: { key: LayerKey; label: string }[] = [
+  { key: 'discovered', label: 'Discovered stores' },
+  { key: 'inside', label: 'Portfolio inside boundary' },
+  { key: 'outside', label: 'Portfolio outside boundary' },
 ];
+
+// Inside and outside are the analytical point of this screen, and green
+// against amber is exactly the pair red/green colour blindness collapses. The
+// swatch keeps the map legend, the tag carries the meaning without it.
+const LAYER_TAG: Record<LayerKey, string> = {
+  discovered: 'OSM',
+  inside: 'In',
+  outside: 'Out',
+};
 
 export interface ListEntry {
   key: string;
@@ -31,13 +40,15 @@ export function DashboardPage() {
   const id = Number(marketId);
   const valid = Number.isInteger(id) && id > 0;
 
-  const market = useRequest(valid ? () => getMarket(id) : null, [id]);
-  const discovered = useRequest(valid ? () => getDiscoveredStores(id) : null, [
-    id,
-  ]);
-  const portfolio = useRequest(valid ? () => getMarketPortfolio(id) : null, [
-    id,
-  ]);
+  const market = useRequest(`market:${id}`, valid ? () => getMarket(id) : null);
+  const discovered = useRequest(
+    `discovered:${id}`,
+    valid ? () => getDiscoveredStores(id) : null,
+  );
+  const portfolio = useRequest(
+    `market-portfolio:${id}`,
+    valid ? () => getMarketPortfolio(id) : null,
+  );
 
   // All on by default, and each toggles on its own — these are stackable
   // layers, not exclusive view modes.
@@ -128,7 +139,7 @@ export function DashboardPage() {
                     }))
                   }
                 />
-                <span className={`swatch swatch--${layer.swatch}`} />
+                <span className={`swatch swatch--${layer.key}`} aria-hidden />
                 {layer.label}
                 <span className="checklist__count">{count(layer.key)}</span>
               </label>
@@ -141,7 +152,12 @@ export function DashboardPage() {
           <ul className="store-list">
             {entries.map((entry) => (
               <li key={entry.key} className="store-list__item">
-                <span className={`swatch swatch--${entry.layer}`} />
+                <span className={`swatch swatch--${entry.layer}`} aria-hidden />
+                <span
+                  className={`store-list__tag store-list__tag--${entry.layer}`}
+                >
+                  {LAYER_TAG[entry.layer]}
+                </span>
                 <span className="store-list__name">{entry.name}</span>
                 <span className="store-list__category">
                   {categoryLabel(entry.category)}
@@ -166,7 +182,11 @@ export function DashboardPage() {
         </aside>
 
         <section className="dashboard__map">
+          {/* MapContainer reads its bounds only when Leaflet is constructed,
+              so without a key the viewport would stay on whichever market
+              rendered first if this component were ever reused across ids. */}
           <MarketMap
+            key={id}
             boundary={boundary}
             discovered={discovered.data?.stores ?? []}
             portfolio={portfolio.data?.stores ?? []}

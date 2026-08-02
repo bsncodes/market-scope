@@ -10,6 +10,7 @@ import {
   listStates,
 } from '../api/endpoints';
 import { BoundaryEditor } from '../components/BoundaryEditor';
+import { BoundaryFields } from '../components/BoundaryFields';
 import { ErrorBox } from '../components/ErrorBox';
 import { Layout } from '../components/Layout';
 import { asApiError, useRequest } from '../hooks/useRequest';
@@ -37,16 +38,21 @@ export function SetupPage() {
 
   // Both are needed before anything can be selected and neither depends on the
   // other, so they are issued together rather than one after the next.
-  const countries = useRequest(listCountries, []);
-  const categories = useRequest(listCategories, []);
+  const countries = useRequest('countries', listCountries);
+  const categories = useRequest('categories', listCategories);
 
-  const states = useRequest(countryId ? () => listStates(countryId) : null, [
-    countryId,
-  ]);
-  const cities = useRequest(stateId ? () => listCities(stateId) : null, [
-    stateId,
-  ]);
-  const bbox = useRequest(cityId ? () => getCityBbox(cityId) : null, [cityId]);
+  const states = useRequest(
+    `states:${countryId}`,
+    countryId ? () => listStates(countryId) : null,
+  );
+  const cities = useRequest(
+    `cities:${stateId}`,
+    stateId ? () => listCities(stateId) : null,
+  );
+  const bbox = useRequest(
+    `bbox:${cityId}`,
+    cityId ? () => getCityBbox(cityId) : null,
+  );
 
   // The city's own bbox is the starting rectangle, shrunk to something the user
   // can actually submit — a city is invariably far bigger than 30 sq km.
@@ -212,11 +218,13 @@ export function SetupPage() {
                 </span>
                 {overLimit && (
                   <span className="area-bar__hint">
-                    Too large — drag a corner inward to shrink the boundary
-                    before you can create the market.
+                    Too large — drag a corner inward, or edit the edges below,
+                    to shrink the boundary before you can create the market.
                   </span>
                 )}
               </div>
+
+              <BoundaryFields bounds={bounds} onChange={setBounds} />
             </>
           )}
         </section>

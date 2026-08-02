@@ -8,6 +8,12 @@ import { asApiError } from '../hooks/useRequest';
 import type { MarketStatusResponse } from '../types/api';
 
 const POLL_INTERVAL_MS = 10_000;
+const MAX_POLL_INTERVAL_MS = 60_000;
+
+// Discovery is paced at well under a request per second against Overpass, so a
+// large market legitimately takes minutes. Past this we stop claiming progress
+// is happening and say so, rather than spinning indefinitely.
+const STALL_WARNING_MS = 5 * 60_000;
 
 const isTerminal = (status: string) =>
   status === 'completed' || status === 'failed';
@@ -17,6 +23,7 @@ export function StatusPage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<MarketStatusResponse | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
+  const [stalled, setStalled] = useState(false);
 
   useEffect(() => {
     const id = Number(marketId);
@@ -29,11 +36,14 @@ export function StatusPage() {
 
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
+    let consecutiveFailures = 0;
+    const startedAt = Date.now();
 
     async function poll() {
       try {
         const next = await getMarketStatus(id);
         if (!active) return;
+        consecutiveFailures = 0;
         setStatus(next);
         setError(null);
         if (next.status === 'completed') {
@@ -45,9 +55,21 @@ export function StatusPage() {
         if (next.status === 'failed') return;
       } catch (err) {
         if (!active) return;
+        consecutiveFailures += 1;
         setError(asApiError(err));
       }
-      if (active) timer = setTimeout(poll, POLL_INTERVAL_MS);
+
+      if (!active) return;
+      setStalled(Date.now() - startedAt > STALL_WARNING_MS);
+
+      // Backing off on repeated failures stops a dead API being hammered every
+      // ten seconds for as long as the tab is open. A success resets it, so a
+      // single blip does not slow the rest of the run down.
+      const backoff = Math.min(
+        POLL_INTERVAL_MS * 2 ** consecutiveFailures,
+        MAX_POLL_INTERVAL_MS,
+      );
+      timer = setTimeout(poll, backoff);
     }
 
     poll();
@@ -112,6 +134,14 @@ export function StatusPage() {
               </div>
             )}
           </dl>
+        )}
+
+        {stalled && !failed && (
+          <div className="notice notice--warn">
+            Still working after {Math.round(STALL_WARNING_MS / 60_000)} minutes.
+            Large markets do take a while, but if the tile counts below are not
+            moving, check that the discovery worker is running.
+          </div>
         )}
 
         {status?.error && (

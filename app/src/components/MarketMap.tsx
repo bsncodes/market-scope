@@ -6,7 +6,6 @@ import {
   Rectangle,
   TileLayer,
 } from 'react-leaflet';
-import { boundsCentre } from '../lib/boundary';
 import { categoryLabel } from '../lib/labels';
 import type { LayerKey } from '../pages/DashboardPage';
 import type { Bounds, DiscoveredStore, PortfolioStore } from '../types/api';
@@ -60,9 +59,11 @@ export function MarketMap({ boundary, discovered, portfolio, visible }: Props) {
       className="map"
       bounds={rectangle}
       boundsOptions={{ padding: [30, 30] }}
-      center={boundsCentre(boundary)}
-      zoom={13}
       scrollWheelZoom
+      // Circles go to one canvas rather than one SVG node each. A dense city
+      // market returns several hundred stores, and per-node SVG is what makes
+      // panning stutter at that count.
+      preferCanvas
     >
       <TileLayer
         attribution={OSM_ATTRIBUTION}

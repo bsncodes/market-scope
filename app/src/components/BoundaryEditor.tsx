@@ -56,8 +56,15 @@ function withCorner(
 /** Re-centres the view when the city changes, but not while the user drags. */
 function RecentreOn({ bounds, token }: { bounds: Bounds; token: unknown }) {
   const map = useMap();
+
+  // Kept in a ref so refitting depends on `token` alone — reacting to `bounds`
+  // would yank the viewport on every drag frame. Assigned in an effect rather
+  // than during render: a render must stay side-effect free to be safely
+  // replayed, which Strict Mode and concurrent rendering both rely on.
   const latest = useRef(bounds);
-  latest.current = bounds;
+  useEffect(() => {
+    latest.current = bounds;
+  });
 
   useEffect(() => {
     const b = latest.current;

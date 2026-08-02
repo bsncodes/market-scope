@@ -6,7 +6,7 @@ import { useRequest } from '../hooks/useRequest';
 
 /** What is actually in portfolio_store right now, straight from the table. */
 export function PortfolioPage() {
-  const portfolio = useRequest(listPortfolio, []);
+  const portfolio = useRequest('portfolio', listPortfolio);
 
   const stores = portfolio.data?.stores ?? [];
   const located = stores.filter((s) => s.lat !== null).length;
@@ -33,7 +33,7 @@ export function PortfolioPage() {
 
       {stores.length > 0 && (
         <>
-          <div className="actions" style={{ marginTop: 0, marginBottom: 16 }}>
+          <div className="actions actions--lead">
             <span className="footnote">
               <strong>{stores.length}</strong> stores · {located} located ·{' '}
               {stores.length - located} awaiting geocoding

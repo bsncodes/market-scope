@@ -16,8 +16,8 @@ const destinationFor = (id: number, status: MarketStatus) =>
   status === 'completed' ? `/markets/${id}` : `/markets/${id}/status`;
 
 export function MarketsPage() {
-  const markets = useRequest(listMarkets, []);
-  const portfolio = useRequest(getPortfolioSummary, []);
+  const markets = useRequest('markets', listMarkets);
+  const portfolio = useRequest('portfolio-summary', getPortfolioSummary);
 
   // Uploading is a one-off, not a toll on every market. With a portfolio
   // already loaded, Create market goes straight to defining the boundary;
@@ -31,7 +31,7 @@ export function MarketsPage() {
       title="Dashboard"
       subtitle="Every market you have created, newest first. Reopen a completed one to see its map again."
     >
-      <div className="actions" style={{ marginTop: 0, marginBottom: 18 }}>
+      <div className="actions actions--lead">
         <Link className="button button--primary" to={createDestination}>
           Create market
         </Link>
@@ -76,7 +76,9 @@ export function MarketsPage() {
                   <th className="markets__num">Discovered</th>
                   <th className="markets__num">In / Out</th>
                   <th>Created</th>
-                  <th />
+                  <th>
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>

@@ -1,6 +1,10 @@
 const BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000/api';
 
+// Generous enough for a city bbox that misses the cache and falls through to
+// Nominatim, short enough that a dead API is reported rather than waited on.
+const REQUEST_TIMEOUT_MS = 20_000;
+
 /**
  * Mirrors the API's `{ error: { code, message, details } }` envelope so screens
  * can show the server's own message instead of a generic failure, and can read
@@ -31,7 +35,20 @@ interface ErrorEnvelope {
 
 async function toResult<T>(res: Response): Promise<T> {
   const text = await res.text();
-  const body = text ? JSON.parse(text) : undefined;
+
+  // A proxy or dev-server error page is served as HTML with any status. Letting
+  // JSON.parse throw would surface to the user as "Unexpected token '<'", which
+  // says nothing about what went wrong or what to do.
+  let body: unknown;
+  try {
+    body = text ? JSON.parse(text) : undefined;
+  } catch {
+    throw new ApiError(
+      res.status,
+      'MALFORMED_RESPONSE',
+      `The API returned a ${res.status} that was not JSON. Check that ${BASE_URL} is the MarketScope API.`,
+    );
+  }
 
   if (!res.ok) {
     const envelope = (body ?? {}) as ErrorEnvelope;
@@ -45,17 +62,24 @@ async function toResult<T>(res: Response): Promise<T> {
   return body as T;
 }
 
-async function send<T>(path: string, init?: RequestInit): Promise<T> {
+async function send<T>(path: string, init: RequestInit = {}): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${BASE_URL}${path}`, init);
-  } catch {
-    // A network-level failure has no envelope to unwrap, and "failed to fetch"
-    // tells a user nothing about what to do.
+    res = await fetch(`${BASE_URL}${path}`, {
+      ...init,
+      // Without this a stalled API never settles the promise, and the caller
+      // waits forever — on the status screen that is a spinner with no error
+      // and no way out, which is precisely the state this app set out to avoid.
+      signal: init.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (err) {
+    const timedOut = err instanceof DOMException && err.name === 'TimeoutError';
     throw new ApiError(
       0,
-      'NETWORK_UNREACHABLE',
-      'Could not reach the MarketScope API. Check that it is running.',
+      timedOut ? 'REQUEST_TIMEOUT' : 'NETWORK_UNREACHABLE',
+      timedOut
+        ? `The API did not respond within ${REQUEST_TIMEOUT_MS / 1000} seconds.`
+        : 'Could not reach the MarketScope API. Check that it is running.',
     );
   }
   return toResult<T>(res);
