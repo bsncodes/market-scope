@@ -14,11 +14,13 @@ import type { PortfolioStore } from '../types/api';
 
 export type LayerKey = 'discovered' | 'inside' | 'outside' | 'matched';
 
-const LAYERS: { key: LayerKey; label: string }[] = [
+// Built from the radius the API reports rather than a literal, so the label
+// cannot drift from STORE_MATCH_RADIUS_M.
+const layers = (radiusM: number): { key: LayerKey; label: string }[] => [
   { key: 'discovered', label: 'Discovered stores' },
   { key: 'inside', label: 'Portfolio inside boundary' },
   { key: 'outside', label: 'Portfolio outside boundary' },
-  { key: 'matched', label: 'Already on OpenStreetMap' },
+  { key: 'matched', label: `Another store within ${radiusM} m` },
 ];
 
 // A matched store is still inside or outside the boundary, so it belongs to
@@ -101,6 +103,8 @@ export function DashboardPage() {
     return rows.sort((a, b) => a.name.localeCompare(b.name));
   }, [discovered.data, portfolio.data, visible]);
 
+  const matchRadiusM = portfolio.data?.match_radius_m ?? 150;
+
   const error = market.error ?? discovered.error ?? portfolio.error;
   if (error) {
     return (
@@ -145,7 +149,7 @@ export function DashboardPage() {
         <aside className="dashboard__panel">
           <h2 className="panel-title">Layers</h2>
           <div className="checklist">
-            {LAYERS.map((layer) => (
+            {layers(matchRadiusM).map((layer) => (
               <label key={layer.key} className="checklist__item">
                 <input
                   type="checkbox"
