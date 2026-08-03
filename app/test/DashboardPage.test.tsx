@@ -150,7 +150,7 @@ describe('DashboardPage', () => {
     await waitFor(() => expect(storeNames()).toHaveLength(1));
 
     await user.click(
-      screen.getByRole('checkbox', { name: /Another store within/ }),
+      screen.getByRole('checkbox', { name: /Portfolio within/ }),
     );
     await waitFor(() =>
       expect(
@@ -196,7 +196,7 @@ describe('DashboardPage', () => {
       await screen.findByText(/Bengaluru market/);
 
       const matched = screen.getByRole('checkbox', {
-        name: /Another store within/,
+        name: /Portfolio within/,
       });
       expect((matched as HTMLInputElement).checked).to.equal(true);
       expect(matched.closest('label')?.textContent).to.contain('1');
@@ -214,11 +214,11 @@ describe('DashboardPage', () => {
 
       expect(
         await screen.findByRole('checkbox', {
-          name: /Another store within 250 m/,
+          name: /Portfolio within 250 m of a store/,
         }),
       ).toBeInTheDocument();
       expect(
-        screen.queryByRole('checkbox', { name: /within 150 m/ }),
+        screen.queryByRole('checkbox', { name: /within 150 m of a store/ }),
       ).not.toBeInTheDocument();
     });
 
@@ -229,7 +229,7 @@ describe('DashboardPage', () => {
       await waitFor(() => expect(storeNames()).toHaveLength(4));
 
       await user.click(
-        screen.getByRole('checkbox', { name: /Another store within/ }),
+        screen.getByRole('checkbox', { name: /Portfolio within/ }),
       );
 
       await waitFor(() => {
@@ -268,7 +268,7 @@ describe('DashboardPage', () => {
         screen.getByRole('checkbox', { name: /inside boundary/ }),
       );
       await user.click(
-        screen.getByRole('checkbox', { name: /Another store within/ }),
+        screen.getByRole('checkbox', { name: /Portfolio within/ }),
       );
 
       await waitFor(() =>

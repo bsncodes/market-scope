@@ -14,13 +14,18 @@ import type { PortfolioStore } from '../types/api';
 
 export type LayerKey = 'discovered' | 'inside' | 'outside' | 'matched';
 
-// Built from the radius the API reports rather than a literal, so the label
-// cannot drift from STORE_MATCH_RADIUS_M.
+// Each label names what the layer contains, because that is what the checkbox
+// switches on and what the count beside it totals. This one holds portfolio
+// stores that have a neighbour — not the neighbours — so it is phrased like
+// the two above it rather than describing the store that was found.
+//
+// The radius comes from the API rather than a literal, so the label cannot
+// drift from STORE_MATCH_RADIUS_M.
 const layers = (radiusM: number): { key: LayerKey; label: string }[] => [
   { key: 'discovered', label: 'Discovered stores' },
   { key: 'inside', label: 'Portfolio inside boundary' },
   { key: 'outside', label: 'Portfolio outside boundary' },
-  { key: 'matched', label: `Another store within ${radiusM} m` },
+  { key: 'matched', label: `Portfolio within ${radiusM} m of a store` },
 ];
 
 // A matched store is still inside or outside the boundary, so it belongs to
