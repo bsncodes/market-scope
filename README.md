@@ -60,27 +60,31 @@ _discover_ are real OSM data.
 
 ## Tests
 
+One-time, to create the throwaway database the integration suite runs against:
+
 ```bash
-npm test                                    # everything, from the root
+npm run test:setup --workspace api
+```
+
+Then, from the root:
+
+```bash
+npm test                                    # everything: api + frontend
 ```
 
 Or individually:
 
 ```bash
-npm run test:unit        --workspace api    # 77, no database needed
-npm run test:integration --workspace api    # 94, needs PostGIS + Redis
-npm test                 --workspace app    # 65, jsdom
+npm run test:unit        --workspace api    # 79, no database needed
+npm run test:integration --workspace api    # 103, needs PostGIS + Redis
+npm test                 --workspace app    # 77, jsdom
 ```
 
-Integration tests need `TEST_DATABASE_URL` pointing at a throwaway database,
-and **refuse to run without it**. They `DELETE` from `portfolio_store`,
-`market` and the caches, and they once destroyed a working development
-database that way. Create one once:
-
-```bash
-createdb market_scope_test    # or: docker compose exec postgres createdb -U market_scope market_scope_test
-TEST_DATABASE_URL=postgres://... npm run init:setup --workspace api
-```
+The integration suite `DELETE`s from `portfolio_store`, `market` and the
+caches, so it **refuses to run** unless `TEST_DATABASE_URL` points somewhere
+disposable. It destroyed a working development database once before that guard
+existed. `test:setup` creates, migrates and seeds that database; `.env.example`
+already has the URL.
 
 Overpass and Nominatim are stubbed with local HTTP servers, so no test ever
 touches a rate-limited public service.
