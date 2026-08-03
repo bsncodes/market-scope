@@ -202,6 +202,26 @@ describe('DashboardPage', () => {
       expect(matched.closest('label')?.textContent).to.contain('1');
     });
 
+    // The radius is configurable, so a hardcoded label would quietly lie the
+    // moment STORE_MATCH_RADIUS_M moved off its default.
+    it('labels itself with the radius the API reports, not a literal', async () => {
+      vi.spyOn(endpoints, 'getMarketPortfolio').mockResolvedValue({
+        ...portfolio,
+        match_radius_m: 250,
+      });
+      renderDashboard();
+      await screen.findByText(/Bengaluru market/);
+
+      expect(
+        await screen.findByRole('checkbox', {
+          name: /Another store within 250 m/,
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('checkbox', { name: /within 150 m/ }),
+      ).not.toBeInTheDocument();
+    });
+
     it('falls back to inside styling when the layer is switched off', async () => {
       const user = userEvent.setup();
       renderDashboard();
