@@ -150,7 +150,7 @@ describe('DashboardPage', () => {
     await waitFor(() => expect(storeNames()).toHaveLength(1));
 
     await user.click(
-      screen.getByRole('checkbox', { name: /Already on OpenStreetMap/ }),
+      screen.getByRole('checkbox', { name: /Another store within/ }),
     );
     await waitFor(() =>
       expect(
@@ -196,7 +196,7 @@ describe('DashboardPage', () => {
       await screen.findByText(/Bengaluru market/);
 
       const matched = screen.getByRole('checkbox', {
-        name: /Already on OpenStreetMap/,
+        name: /Another store within/,
       });
       expect((matched as HTMLInputElement).checked).to.equal(true);
       expect(matched.closest('label')?.textContent).to.contain('1');
@@ -209,7 +209,7 @@ describe('DashboardPage', () => {
       await waitFor(() => expect(storeNames()).toHaveLength(4));
 
       await user.click(
-        screen.getByRole('checkbox', { name: /Already on OpenStreetMap/ }),
+        screen.getByRole('checkbox', { name: /Another store within/ }),
       );
 
       await waitFor(() => {
@@ -248,7 +248,7 @@ describe('DashboardPage', () => {
         screen.getByRole('checkbox', { name: /inside boundary/ }),
       );
       await user.click(
-        screen.getByRole('checkbox', { name: /Already on OpenStreetMap/ }),
+        screen.getByRole('checkbox', { name: /Another store within/ }),
       );
 
       await waitFor(() =>

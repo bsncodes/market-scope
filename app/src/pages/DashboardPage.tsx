@@ -18,7 +18,7 @@ const LAYERS: { key: LayerKey; label: string }[] = [
   { key: 'discovered', label: 'Discovered stores' },
   { key: 'inside', label: 'Portfolio inside boundary' },
   { key: 'outside', label: 'Portfolio outside boundary' },
-  { key: 'matched', label: 'Already on OpenStreetMap' },
+  { key: 'matched', label: 'Another store within 150 m' },
 ];
 
 // A matched store is still inside or outside the boundary, so it belongs to
